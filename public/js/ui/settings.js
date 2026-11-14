@@ -1,6 +1,81 @@
 import { esc } from './dialogs.js';
 import { DEFAULT_ACCENT } from '../schema.js';
 import { buildInviteUrl } from '../auth.js';
+import { getSortedActiveCategories, getActiveItemsList, computeBudgetSummary } from './list.js';
+
+export function renderCategoriesAndBudgetCard(appState) {
+  const snap = appState.localSnapshot;
+  const cats = getSortedActiveCategories(snap?.cats);
+  const allItems = getActiveItemsList(snap?.items);
+  const summary = computeBudgetSummary(allItems, snap?.budget);
+  const perCatMap = snap?.budget?.perCat || {};
+  const role = appState.prefs.currentRole || 'admin';
+  const memberName = appState.prefs.memberName || 'الأب';
+
+  return `
+    <section class="sec stack" id="role-budget-sec">
+      <div class="row">
+        <h3>👤 الدور الحالي والميزانية الشهرية</h3>
+        <span class="badge-ok">${role === 'admin' ? '👑 مسؤول' : role === 'child' ? '🧒 طفل' : '🧑 عضو'}</span>
+      </div>
+      <div class="g2">
+        <input id="member-name-inp" class="input" placeholder="اسم العضو الحالي" value="${esc(memberName)}" />
+        <select id="role-select" class="select" aria-label="اختيار الدور">
+          <option value="admin" ${role === 'admin' ? 'selected' : ''}>👑 مسؤول (Admin)</option>
+          <option value="member" ${role === 'member' ? 'selected' : ''}>🧑 عضو عائلة (Member)</option>
+          <option value="child" ${role === 'child' ? 'selected' : ''}>🧒 طفل — طلبات فقط (Child)</option>
+        </select>
+      </div>
+      <button type="button" id="save-role-btn" class="btn g">💾 حفظ الدور والاسم</button>
+
+      <div class="row">
+        <label for="monthly-budget-inp" class="mu">💰 الميزانية الشهرية الإجمالية (د.ل)</label>
+        <span class="chip">المقدر: ${summary.estTotal} د.ل · المدفوع: ${summary.paidTotal} د.ل</span>
+      </div>
+      <div class="row">
+        <input id="monthly-budget-inp" class="input grow" type="number" min="0" step="10" value="${esc(summary.budgetMonthly)}" />
+        <button type="button" id="save-budget-btn" class="btn">💾 حفظ الميزانية</button>
+      </div>
+    </section>
+
+    <section class="sec stack" id="cats-manager-sec">
+      <div class="row">
+        <h3>🗂️ إدارة الأقسام وميزانياتها (${cats.length})</h3>
+        <button type="button" id="add-cat-btn" class="btn">➕ قسم جديد</button>
+      </div>
+      <p class="mu">يمكنك إعادة الترتيب، تعديل الاسم والرمز، تحديد سقف ميزانية لكل قسم، أو حذف قسم مع نقل أغراضه.</p>
+      <div class="stack">
+        ${cats
+          .map(
+            (cat, idx) => `
+          <div class="list-item stack" data-cat-manage="${esc(cat.id)}">
+            <div class="row">
+              <strong>${esc(cat.i)} ${esc(cat.n)}</strong>
+              <div class="row">
+                <button type="button" class="btn g" data-cat-move="${esc(cat.id)}:-1" ${idx === 0 ? 'disabled' : ''} aria-label="تحريك ${esc(cat.n)} لأعلى">↑</button>
+                <button type="button" class="btn g" data-cat-move="${esc(cat.id)}:1" ${idx === cats.length - 1 ? 'disabled' : ''} aria-label="تحريك ${esc(cat.n)} لأسفل">↓</button>
+                <button type="button" class="btn g" data-cat-edit="${esc(cat.id)}" aria-label="تعديل ${esc(cat.n)}">✏️</button>
+                <button type="button" class="btn r" data-cat-delete="${esc(cat.id)}" aria-label="حذف ${esc(cat.n)}">🗑️</button>
+              </div>
+            </div>
+            <div class="row">
+              <span class="mu">سقف ميزانية القسم (د.ل، 0 = بدون سقف):</span>
+              <input
+                class="input"
+                type="number"
+                min="0"
+                step="5"
+                data-cat-limit="${esc(cat.id)}"
+                value="${esc(Number(perCatMap[cat.id]) || 0)}"
+                aria-label="سقف ميزانية ${esc(cat.n)}"
+              />
+            </div>
+          </div>`
+          )
+          .join('')}
+      </div>
+    </section>`;
+}
 
 export function renderRoomAndAuthCard(appState) {
   const snap = appState.localSnapshot;

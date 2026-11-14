@@ -23,10 +23,17 @@
       <div class="w">
         <div class="row">
           <div>
-            <div class="header-sub">Family OS · الإصدار التمهيدي</div>
+            <div class="header-sub">Family OS · مقاضي العائلة</div>
             <h1>🛒 مقاضي العائلة</h1>
           </div>
           <div id="net-pill" class="status-pill" aria-live="polite">جارٍ التحقق...</div>
+        </div>
+        <div class="row" id="header-budget-row">
+          <small id="header-totals" class="header-sub">المقدر: 0 د.ل · المدفوع: 0 د.ل</small>
+          <small id="header-budget-status" class="header-sub">الميزانية: 250 د.ل</small>
+        </div>
+        <div class="header-bar" aria-hidden="true">
+          <span id="header-budget-fill" class="header-bar-fill"></span>
         </div>
       </div>
     </header>
@@ -49,6 +56,7 @@
 
     <nav class="nav" aria-label="التنقل الرئيسي">
       <button type="button" data-tab="home" class="on">🏠 التأسيس</button>
+      <button type="button" data-tab="store">🏪 المتجر</button>
       <button type="button" data-tab="import">📥 استيراد</button>
       <button type="button" data-tab="prefs">🎨 المظهر</button>
     </nav>

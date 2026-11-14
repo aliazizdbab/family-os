@@ -1,4 +1,13 @@
-import { DEFAULT_ACCENT, SCHEMA_VERSION, createEmptyRoomState } from './schema.js';
+import {
+  DEFAULT_ACCENT,
+  SCHEMA_VERSION,
+  createBudget,
+  createCategory,
+  createEmptyRoomState,
+  createHistoryEntry,
+  createItem,
+  createRequest,
+} from './schema.js';
 import {
   DEFAULT_ROOM_ID,
   DEFAULT_RTDB_URL,
@@ -18,13 +27,31 @@ import {
   setLocalPinLock,
 } from './auth.js';
 import { SyncEngine, getSyncBadgeLabel, probeFirebaseConnection } from './sync.js';
-import { esc, showConfirmDialog, showToast } from './ui/dialogs.js';
-import { renderSampleItemRow } from './ui/list.js';
 import {
+  esc,
+  showCategoryDialog,
+  showConfirmDialog,
+  showEditItemDialog,
+  showToast,
+  showUndoSnackbar,
+} from './ui/dialogs.js';
+import {
+  buildWhatsAppReport,
+  computeBudgetSummary,
+  extractHistorySuggestions,
+  getActiveItemsList,
+  getSortedActiveCategories,
+  parseSharedTextCandidates,
+  renderSampleItemRow,
+  renderShoppingListView,
+} from './ui/list.js';
+import {
+  renderCategoriesAndBudgetCard,
   renderFirebaseDiagnosticsCard,
   renderRoomAndAuthCard,
   renderThemeSettingsCard,
 } from './ui/settings.js';
+import { renderStoreModeView, sortCategoriesByAisle } from './ui/store-mode.js';
 
 export { esc };
 
@@ -41,6 +68,7 @@ const COLORS = [
 
 let activeSyncEngine = null;
 let pinLockEnabled = false;
+let pendingSharedText = '';
 
 function applyTheme() {
   const root = document.documentElement;
@@ -55,6 +83,78 @@ function updateNetworkStatus() {
   const pill = document.getElementById('net-pill');
   if (!pill) return;
   pill.textContent = getSyncBadgeLabel(state.syncStatus, navigator.onLine);
+}
+
+function updateHeaderTotals() {
+  const snap = state.localSnapshot || {};
+  const allItems = getActiveItemsList(snap.items || {});
+  const summary = computeBudgetSummary(allItems, snap.budget);
+
+  const totalsEl = document.getElementById('header-totals');
+  if (totalsEl) {
+    totalsEl.textContent = `المقدر: ${summary.estTotal} د.ل · المدفوع: ${summary.paidTotal} د.ل (${summary.completionPct}%)`;
+  }
+
+  const budgetEl = document.getElementById('header-budget-status');
+  if (budgetEl) {
+    if (summary.status === 'over') {
+      budgetEl.textContent = `⚠️ تجاوز الميزانية (${summary.estTotal}/${summary.budgetMonthly} د.ل)`;
+    } else if (summary.status === 'near') {
+      budgetEl.textContent = `⚡ قارب السقف: متبقي ${summary.remainingBudget} من ${summary.budgetMonthly} د.ل`;
+    } else {
+      budgetEl.textContent = `الميزانية: ${summary.budgetMonthly} د.ل (متبقي ${summary.remainingBudget} د.ل)`;
+    }
+  }
+
+  const fillEl = document.getElementById('header-budget-fill');
+  if (fillEl) {
+    fillEl.style.width = `${summary.budgetPct}%`;
+    fillEl.classList.toggle('over', summary.status === 'over');
+  }
+}
+
+async function persistEntity(collection, id, record) {
+  if (activeSyncEngine) {
+    await activeSyncEngine.mutateEntity(collection, id, record);
+    return;
+  }
+  if (!state.localSnapshot[collection]) {
+    state.localSnapshot[collection] = {};
+  }
+  state.localSnapshot[collection][id] = record;
+  await localStore.putEntity(state.roomId, collection, id, record);
+  await localStore.enqueueOutbox({
+    roomId: state.roomId,
+    collection,
+    entityId: id,
+    op: 'upsert',
+    payload: record,
+    updatedAt: record.updatedAt || Date.now(),
+  });
+}
+
+async function persistRoomDoc(partial) {
+  if (activeSyncEngine) {
+    await activeSyncEngine.mutateRoomDoc(partial);
+    return;
+  }
+  await localStore.setRoomDoc(state.roomId, partial);
+}
+
+function applySearchFilterInDom(queryStr) {
+  const q = String(queryStr || '')
+    .trim()
+    .toLowerCase();
+  document.querySelectorAll('[data-item-row]').forEach((row) => {
+    const itemName = (row.getAttribute('data-item-name') || '').toLowerCase();
+    row.classList.toggle('hidden', Boolean(q && !itemName.includes(q)));
+  });
+  document.querySelectorAll('[data-cat-card]').forEach((card) => {
+    const allRows = card.querySelectorAll('[data-item-row]');
+    if (allRows.length === 0) return;
+    const anyVisible = Array.from(allRows).some((r) => !r.classList.contains('hidden'));
+    card.classList.toggle('hidden', Boolean(q && !anyVisible));
+  });
 }
 
 function handleLaunchIntents() {
@@ -75,18 +175,26 @@ function handleLaunchIntents() {
         <button type="button" id="accept-join-btn" class="btn">✅ انضمام الآن</button>
       </div>`;
   } else if (sharedText) {
+    pendingSharedText = sharedText;
+    const candidates = parseSharedTextCandidates(sharedText);
     box.hidden = false;
     box.innerHTML = `
       <div class="stack">
-        <strong>📩 نص مُشارك للتطبيق (جاهز للتحليل في المرحلة 2/3)</strong>
+        <strong>📩 نص مُشارك للتطبيق (${candidates.length} غرض مقترح)</strong>
         <p class="mu">${esc(sharedText)}</p>
+        ${
+          candidates.length > 0
+            ? `<button type="button" id="confirm-share-add-btn" class="btn">✅ إضافة الأغراض المُشاركة للقائمة (${candidates.length})</button>`
+            : ''
+        }
       </div>`;
   } else if (action === 'add') {
     box.hidden = false;
     box.innerHTML = `<p class="mu">⚡ اختصار «إضافة غرض» جاهز ومُفعل في التطبيق المثبّت.</p>`;
   } else if (mode === 'store') {
+    state.tab = 'store';
     box.hidden = false;
-    box.innerHTML = `<p class="mu">🛒 اختصار «وضع السوبرماركت» جاهز وسيُربط في المرحلة 2.</p>`;
+    box.innerHTML = `<p class="mu">🛒 تم فتح «وضع السوبرماركت» مباشرة.</p>`;
   } else {
     box.hidden = true;
   }
@@ -103,18 +211,17 @@ async function refreshSnapshot() {
 
 function renderHomeTab() {
   const snap = state.localSnapshot;
-  const catsCount = Object.keys(snap?.cats || {}).length;
-  const itemsCount = Object.keys(snap?.items || {}).length;
+  const catsCount = getSortedActiveCategories(snap?.cats).length;
+  const itemsCount = getActiveItemsList(snap?.items).length;
   const membersCount = Object.keys(snap?.members || {}).length;
   const budget = snap?.budget?.monthly ?? 250;
 
   return `
     <section class="sec stack">
       <div class="row">
-        <h2>🧱 التأسيس والمزامنة (Phase 0 + Phase 1)</h2>
+        <h2>🛒 قائمة مقاضي العائلة (Phase 2)</h2>
         <span class="badge-ok">الإصدار v${SCHEMA_VERSION}</span>
       </div>
-      <p class="mu">تقرأ الواجهة من التخزين المحلي IndexedDB فقط، وتُرسل التعديلات عبر طابور Outbox مع دمج LWW التلقائي دون المساس ببيانات النسخة القديمة.</p>
       <div class="chips">
         <span class="chip">🗂️ الأقسام: ${catsCount}</span>
         <span class="chip">🛒 الأغراض المحلية: ${itemsCount}</span>
@@ -123,6 +230,8 @@ function renderHomeTab() {
         <span class="chip">📤 بالانتظار: ${state.syncStatus.pendingCount}</span>
       </div>
     </section>
+
+    ${renderShoppingListView(state)}
 
     ${renderRoomAndAuthCard(state)}
 
@@ -205,12 +314,16 @@ function renderImportTab() {
 }
 
 function renderPrefsTab() {
-  return renderThemeSettingsCard(state.prefs, COLORS, pinLockEnabled);
+  return `
+    ${renderCategoriesAndBudgetCard(state)}
+    ${renderThemeSettingsCard(state.prefs, COLORS, pinLockEnabled)}
+  `;
 }
 
 function render() {
   applyTheme();
   updateNetworkStatus();
+  updateHeaderTotals();
   document.querySelectorAll('.nav button').forEach((btn) => {
     btn.classList.toggle('on', btn.dataset.tab === state.tab);
   });
@@ -219,6 +332,7 @@ function render() {
   if (!root) return;
 
   if (state.tab === 'home') root.innerHTML = renderHomeTab();
+  else if (state.tab === 'store') root.innerHTML = renderStoreModeView(state);
   else if (state.tab === 'import') root.innerHTML = renderImportTab();
   else root.innerHTML = renderPrefsTab();
 
@@ -230,10 +344,51 @@ function render() {
   if (swEl && 'serviceWorker' in navigator) {
     swEl.textContent = navigator.serviceWorker.controller ? 'مفعّل وجاهز دون نت' : 'مُسجّل';
   }
+
+  if (state.tab === 'home' && state.searchQuery) {
+    applySearchFilterInDom(state.searchQuery);
+  }
   bindViewEvents();
 }
 
+async function addNewShoppingItem({ n, q = '', p = 0, c = 'super', u = false, note = '' }) {
+  const cleanName = String(n || '').trim();
+  if (!cleanName) return null;
+  const now = Date.now();
+  const id = `it_${now}_${Math.random().toString(36).slice(2, 7)}`;
+  const memberName = state.prefs.memberName || 'الأب';
+  const item = createItem({
+    id,
+    n: cleanName,
+    q,
+    p: Number(p) || 0,
+    c: c || 'super',
+    u: Boolean(u),
+    note,
+    by: state.firebaseStatus.uid || memberName,
+    byName: memberName,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await persistEntity('items', id, item);
+  return item;
+}
+
 function bindViewEvents() {
+  document.getElementById('confirm-share-add-btn')?.addEventListener('click', async () => {
+    const candidates = parseSharedTextCandidates(pendingSharedText);
+    if (!candidates.length) return;
+    for (const cand of candidates) {
+      await addNewShoppingItem({ n: cand.n, q: cand.q, c: 'super' });
+    }
+    pendingSharedText = '';
+    const box = document.getElementById('intent-banner');
+    if (box) box.hidden = true;
+    await refreshSnapshot();
+    showToast(`✅ تمت إضافة ${candidates.length} غرض من النص المُشارك`);
+    render();
+  });
+
   document.getElementById('accept-join-btn')?.addEventListener('click', async () => {
     const joinData = parseJoinHash(window.location.hash);
     if (!joinData) return;
@@ -261,6 +416,618 @@ function bindViewEvents() {
     }
   });
 
+  // --- Phase 2: Shopping List Events ---
+  const addNameInp = document.getElementById('add-item-n');
+  if (addNameInp) {
+    addNameInp.addEventListener('input', () => {
+      const val = addNameInp.value.trim();
+      if (!val) return;
+      const suggestions = extractHistorySuggestions(
+        state.localSnapshot?.history,
+        state.localSnapshot?.items
+      );
+      const match = suggestions.find((s) => s.itemName === val);
+      if (match) {
+        const catSel = document.getElementById('add-item-c');
+        const priceInp = document.getElementById('add-item-p');
+        const qtyInp = document.getElementById('add-item-q');
+        if (catSel && match.c) catSel.value = match.c;
+        if (priceInp && !priceInp.value && match.p) priceInp.value = String(match.p);
+        if (qtyInp && !qtyInp.value && match.q) qtyInp.value = match.q;
+      }
+    });
+  }
+
+  document.getElementById('add-item-btn')?.addEventListener('click', async () => {
+    const n = document.getElementById('add-item-n')?.value?.trim() || '';
+    if (!n) {
+      showToast('⚠️ اكتب اسم الغرض أولاً');
+      return;
+    }
+    const q = document.getElementById('add-item-q')?.value?.trim() || '';
+    const p = Number(document.getElementById('add-item-p')?.value) || 0;
+    const c = document.getElementById('add-item-c')?.value || 'super';
+    const note = document.getElementById('add-item-note')?.value?.trim() || '';
+    const u = Boolean(document.getElementById('add-item-u')?.checked);
+
+    await addNewShoppingItem({ n, q, p, c, u, note });
+    await refreshSnapshot();
+    showToast(`✅ أُضيف «${n}» للقائمة`);
+    render();
+  });
+
+  document.querySelectorAll('[data-freq-item]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const n = btn.getAttribute('data-freq-item') || '';
+      const c = btn.getAttribute('data-freq-cat') || 'super';
+      const p = Number(btn.getAttribute('data-freq-price')) || 0;
+      const q = btn.getAttribute('data-freq-qty') || '';
+      await addNewShoppingItem({ n, q, p, c });
+      await refreshSnapshot();
+      showToast(`⚡ أُضيف «${n}» من الأغراض المتكررة`);
+      render();
+    });
+  });
+
+  document.getElementById('save-weekly-tpl-btn')?.addEventListener('click', async () => {
+    const active = getActiveItemsList(state.localSnapshot?.items).filter((i) => !i.dn);
+    if (active.length === 0) {
+      showToast('⚠️ أضف أغراضاً متبقية أولاً لحفظها كقالب أسبوعي');
+      return;
+    }
+    state.prefs.weeklyTemplate = active.map((i) => ({
+      n: i.n,
+      q: i.q,
+      p: i.p,
+      c: i.c,
+      u: i.u,
+    }));
+    await localStore.setPref('theme', state.prefs);
+    showToast(`💾 تم حفظ ${active.length} غرض في «مشتريات الأسبوع»`);
+  });
+
+  document.getElementById('apply-weekly-tpl-btn')?.addEventListener('click', async () => {
+    const tpl =
+      Array.isArray(state.prefs.weeklyTemplate) && state.prefs.weeklyTemplate.length > 0
+        ? state.prefs.weeklyTemplate
+        : extractHistorySuggestions(state.localSnapshot?.history, state.localSnapshot?.items)
+            .slice(0, 5)
+            .map((s) => ({ n: s.itemName, q: s.q, p: s.p, c: s.c, u: false }));
+
+    const existingRemaining = new Set(
+      getActiveItemsList(state.localSnapshot?.items)
+        .filter((i) => !i.dn)
+        .map((i) => i.n.trim())
+    );
+    let added = 0;
+    for (const entry of tpl) {
+      if (!existingRemaining.has(entry.n.trim())) {
+        await addNewShoppingItem(entry);
+        added += 1;
+      }
+    }
+    await refreshSnapshot();
+    showToast(
+      added > 0
+        ? `🔁 تمت إضافة ${added} غرض من مشتريات الأسبوع`
+        : '✅ كل مشتريات الأسبوع موجودة بالفعل'
+    );
+    render();
+  });
+
+  document.querySelectorAll('[data-list-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.listFilter = btn.getAttribute('data-list-filter') || 'todo';
+      render();
+    });
+  });
+
+  document.getElementById('collapse-all-cats-btn')?.addEventListener('click', async () => {
+    const cats = getSortedActiveCategories(state.localSnapshot?.cats);
+    const current = Array.isArray(state.prefs.collapsedCats) ? state.prefs.collapsedCats : [];
+    const allCollapsed = cats.length > 0 && cats.every((c) => current.includes(c.id));
+    state.prefs.collapsedCats = allCollapsed ? [] : cats.map((c) => c.id);
+    await localStore.setPref('theme', state.prefs);
+    render();
+  });
+
+  document.querySelectorAll('[data-cat-toggle]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const cid = btn.getAttribute('data-cat-toggle');
+      if (!cid) return;
+      const set = new Set(
+        Array.isArray(state.prefs.collapsedCats) ? state.prefs.collapsedCats : []
+      );
+      if (set.has(cid)) set.delete(cid);
+      else set.add(cid);
+      state.prefs.collapsedCats = Array.from(set);
+      await localStore.setPref('theme', state.prefs);
+      render();
+    });
+  });
+
+  const searchInp = document.getElementById('search-items-inp');
+  if (searchInp) {
+    searchInp.addEventListener('input', () => {
+      state.searchQuery = searchInp.value;
+      applySearchFilterInDom(state.searchQuery);
+    });
+  }
+
+  // Inline qty & price inputs: update in-place without re-rendering #view-root so focus stays!
+  document.querySelectorAll('[data-inline-q]').forEach((inp) => {
+    inp.addEventListener('input', async () => {
+      const id = inp.getAttribute('data-inline-q');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const updated = createItem({ ...existing, q: inp.value.trim(), updatedAt: Date.now() });
+      state.localSnapshot.items[id] = updated;
+      await persistEntity('items', id, updated);
+    });
+  });
+
+  document.querySelectorAll('[data-inline-p]').forEach((inp) => {
+    inp.addEventListener('input', async () => {
+      const id = inp.getAttribute('data-inline-p');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const newPrice = Math.max(0, Number(inp.value) || 0);
+      const updated = createItem({ ...existing, p: newPrice, updatedAt: Date.now() });
+      state.localSnapshot.items[id] = updated;
+      updateHeaderTotals();
+      await persistEntity('items', id, updated);
+    });
+  });
+
+  document.querySelectorAll('[data-item-toggle]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-item-toggle');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const prevCopy = { ...existing };
+      const nextDn = !existing.dn;
+      const memberName = state.prefs.memberName || 'الأب';
+      const now = Date.now();
+      const updated = createItem({
+        ...existing,
+        dn: nextDn,
+        dnBy: nextDn ? memberName : '',
+        dnAt: nextDn ? now : '',
+        deferred: false,
+        updatedAt: now,
+      });
+      await persistEntity('items', id, updated);
+
+      if (nextDn) {
+        const histId = `h_${now}_${id}`;
+        const hist = createHistoryEntry({
+          id: histId,
+          itemName: updated.n,
+          c: updated.c,
+          p: updated.p,
+          q: updated.q,
+          at: now,
+          uid: state.firebaseStatus.uid || memberName,
+        });
+        await persistEntity('history', histId, hist);
+      }
+
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(
+        nextDn ? `✅ أُنجز «${existing.n}»` : `↩️ أُعيد «${existing.n}» للمتبقي`,
+        async () => {
+          const reverted = createItem({ ...prevCopy, updatedAt: Date.now() });
+          await persistEntity('items', id, reverted);
+          await refreshSnapshot();
+          render();
+        }
+      );
+    });
+  });
+
+  document.querySelectorAll('[data-item-claim]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-item-claim');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const memberName = state.prefs.memberName || 'الأب';
+      const nextClaim = existing.cl === memberName ? '' : memberName;
+      const updated = createItem({ ...existing, cl: nextClaim, updatedAt: Date.now() });
+      await persistEntity('items', id, updated);
+      await refreshSnapshot();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-item-edit]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-item-edit');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const cats = getSortedActiveCategories(state.localSnapshot?.cats);
+      const edited = await showEditItemDialog(existing, cats);
+      if (!edited) return;
+      const prevCopy = { ...existing };
+      const updated = createItem({
+        ...existing,
+        ...edited,
+        updatedAt: Date.now(),
+      });
+      await persistEntity('items', id, updated);
+      await refreshSnapshot();
+      render();
+      if (prevCopy.c !== updated.c) {
+        showUndoSnackbar(`📂 نُقل «${updated.n}» إلى قسم آخر`, async () => {
+          const reverted = createItem({ ...prevCopy, updatedAt: Date.now() });
+          await persistEntity('items', id, reverted);
+          await refreshSnapshot();
+          render();
+        });
+      } else {
+        showToast(`✏️ تم تحديث «${updated.n}»`);
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-item-delete]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-item-delete');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const prevCopy = { ...existing };
+      const tomb = createItem({ ...existing, deleted: true, updatedAt: Date.now() });
+      await persistEntity('items', id, tomb);
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`🗑️ حُذف «${existing.n}»`, async () => {
+        const restored = createItem({ ...prevCopy, deleted: false, updatedAt: Date.now() });
+        await persistEntity('items', id, restored);
+        await refreshSnapshot();
+        render();
+      });
+    });
+  });
+
+  document.getElementById('toggle-done-sec-btn')?.addEventListener('click', () => {
+    state.showDone = !state.showDone;
+    render();
+  });
+
+  document.getElementById('clear-done-btn')?.addEventListener('click', async () => {
+    const doneList = getActiveItemsList(state.localSnapshot?.items).filter((i) => i.dn);
+    if (!doneList.length) return;
+    const confirmed = await showConfirmDialog(
+      `هل تريد مسح جميع الأغراض المنجزة (${doneList.length})؟`
+    );
+    if (!confirmed) return;
+    const backup = doneList.map((i) => ({ ...i }));
+    const now = Date.now();
+    for (const item of doneList) {
+      const tomb = createItem({ ...item, deleted: true, updatedAt: now });
+      await persistEntity('items', item.id, tomb);
+    }
+    await refreshSnapshot();
+    render();
+    showUndoSnackbar(`🧹 تم مسح ${doneList.length} غرض منجز`, async () => {
+      const restoreTs = Date.now();
+      for (const prev of backup) {
+        const restored = createItem({ ...prev, deleted: false, updatedAt: restoreTs });
+        await persistEntity('items', prev.id, restored);
+      }
+      await refreshSnapshot();
+      render();
+    });
+  });
+
+  // Child requests
+  document.getElementById('submit-request-btn')?.addEventListener('click', async () => {
+    const n = document.getElementById('req-item-n')?.value?.trim() || '';
+    if (!n) {
+      showToast('⚠️ اكتب اسم الطلب أولاً');
+      return;
+    }
+    const q = document.getElementById('req-item-q')?.value?.trim() || '';
+    const c = document.getElementById('req-item-c')?.value || 'super';
+    const now = Date.now();
+    const id = `req_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    const memberName = state.prefs.memberName || 'الابن';
+    const req = createRequest({
+      id,
+      by: state.firebaseStatus.uid || memberName,
+      byName: memberName,
+      n,
+      q,
+      c,
+      status: 'pending',
+      updatedAt: now,
+    });
+    await persistEntity('requests', id, req);
+    await refreshSnapshot();
+    showToast('📨 تم إرسال الطلب للمسؤول للموافقة');
+    render();
+  });
+
+  document.querySelectorAll('[data-req-approve]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-req-approve');
+      const req = state.localSnapshot?.requests?.[id];
+      if (!req) return;
+      const approved = createRequest({ ...req, status: 'approved', updatedAt: Date.now() });
+      await persistEntity('requests', id, approved);
+      await addNewShoppingItem({ n: req.n, q: req.q, c: req.c });
+      await refreshSnapshot();
+      showToast(`✅ تمت الموافقة على «${req.n}» وإضافته للقائمة`);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-req-reject]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-req-reject');
+      const req = state.localSnapshot?.requests?.[id];
+      if (!req) return;
+      const rejected = createRequest({ ...req, status: 'rejected', updatedAt: Date.now() });
+      await persistEntity('requests', id, rejected);
+      await refreshSnapshot();
+      showToast(`✕ تم رفض الطلب «${req.n}»`);
+      render();
+    });
+  });
+
+  document.getElementById('share-wa-btn')?.addEventListener('click', async () => {
+    const snap = state.localSnapshot || {};
+    const cats = getSortedActiveCategories(snap.cats);
+    const items = getActiveItemsList(snap.items);
+    const summary = computeBudgetSummary(items, snap.budget);
+    const report = buildWhatsAppReport({
+      roomName: snap.meta?.name || 'عائلتي',
+      categoriesList: cats,
+      itemsList: items,
+      summary,
+    });
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(report);
+        showToast('📋 تم نسخ تقرير واتساب إلى الحافظة');
+        return;
+      }
+    } catch {
+      // Fallback below
+    }
+    showToast('📲 تم تجهيز تقرير واتساب للمشاركة');
+  });
+
+  // --- Phase 2: Store Mode Events ---
+  document.querySelectorAll('[data-store-check]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-store-check');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const prevCopy = { ...existing };
+      const now = Date.now();
+      const memberName = state.prefs.memberName || 'الأب';
+      const updated = createItem({
+        ...existing,
+        dn: true,
+        dnBy: memberName,
+        dnAt: now,
+        deferred: false,
+        updatedAt: now,
+      });
+      await persistEntity('items', id, updated);
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`🛒 وُضع «${existing.n}» في العربة`, async () => {
+        const reverted = createItem({ ...prevCopy, updatedAt: Date.now() });
+        await persistEntity('items', id, reverted);
+        await refreshSnapshot();
+        render();
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-store-defer]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-store-defer');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const prevCopy = { ...existing };
+      const updated = createItem({
+        ...existing,
+        deferred: true,
+        updatedAt: Date.now(),
+      });
+      await persistEntity('items', id, updated);
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`⏳ أُجّل «${existing.n}» (غير متوفر حالياً)`, async () => {
+        const reverted = createItem({ ...prevCopy, updatedAt: Date.now() });
+        await persistEntity('items', id, reverted);
+        await refreshSnapshot();
+        render();
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-store-undefer]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-store-undefer');
+      const existing = state.localSnapshot?.items?.[id];
+      if (!existing) return;
+      const updated = createItem({
+        ...existing,
+        deferred: false,
+        updatedAt: Date.now(),
+      });
+      await persistEntity('items', id, updated);
+      await refreshSnapshot();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-aisle-move]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const raw = btn.getAttribute('data-aisle-move') || '';
+      const [catId, dirStr] = raw.split(':');
+      const delta = Number(dirStr);
+      if (!catId || !delta) return;
+      const ordered = sortCategoriesByAisle(
+        state.localSnapshot?.cats || {},
+        state.prefs.aisleOrder || []
+      ).map((c) => c.id);
+      const idx = ordered.indexOf(catId);
+      const targetIdx = idx + delta;
+      if (idx < 0 || targetIdx < 0 || targetIdx >= ordered.length) return;
+      [ordered[idx], ordered[targetIdx]] = [ordered[targetIdx], ordered[idx]];
+      state.prefs.aisleOrder = ordered;
+      await localStore.setPref('theme', state.prefs);
+      render();
+    });
+  });
+
+  // --- Phase 2: Categories & Budget & Role Manager Events ---
+  document.getElementById('save-role-btn')?.addEventListener('click', async () => {
+    const memberName = document.getElementById('member-name-inp')?.value?.trim() || 'الأب';
+    const role = document.getElementById('role-select')?.value || 'admin';
+    state.prefs.memberName = memberName;
+    state.prefs.currentRole = role;
+    await localStore.setPref('theme', state.prefs);
+    showToast(`👤 تم التبديل إلى: ${memberName} (${role})`);
+    render();
+  });
+
+  document.getElementById('save-budget-btn')?.addEventListener('click', async () => {
+    const monthly = Math.max(0, Number(document.getElementById('monthly-budget-inp')?.value) || 0);
+    const nextBudget = createBudget({
+      monthly,
+      perCat: state.localSnapshot?.budget?.perCat || {},
+    });
+    state.localSnapshot.budget = nextBudget;
+    await persistRoomDoc({ budget: nextBudget });
+    await refreshSnapshot();
+    showToast(`💰 تم تحديث الميزانية الشهرية إلى ${monthly} د.ل`);
+    render();
+  });
+
+  document.querySelectorAll('[data-cat-limit]').forEach((inp) => {
+    inp.addEventListener('change', async () => {
+      const cid = inp.getAttribute('data-cat-limit');
+      if (!cid) return;
+      const limitVal = Math.max(0, Number(inp.value) || 0);
+      const perCat = { ...(state.localSnapshot?.budget?.perCat || {}), [cid]: limitVal };
+      const nextBudget = createBudget({
+        monthly: state.localSnapshot?.budget?.monthly ?? 250,
+        perCat,
+      });
+      state.localSnapshot.budget = nextBudget;
+      await persistRoomDoc({ budget: nextBudget });
+      updateHeaderTotals();
+      showToast('✅ تم حفظ سقف ميزانية القسم');
+    });
+  });
+
+  document.getElementById('add-cat-btn')?.addEventListener('click', async () => {
+    const res = await showCategoryDialog(null);
+    if (!res) return;
+    const cats = getSortedActiveCategories(state.localSnapshot?.cats);
+    const id = `cat_${Date.now()}`;
+    const newCat = createCategory({
+      id,
+      n: res.n,
+      i: res.i,
+      order: cats.length,
+      updatedAt: Date.now(),
+    });
+    await persistEntity('cats', id, newCat);
+    await refreshSnapshot();
+    showToast(`➕ أُضيف القسم «${res.n}»`);
+    render();
+  });
+
+  document.querySelectorAll('[data-cat-edit]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const cid = btn.getAttribute('data-cat-edit');
+      const existing = state.localSnapshot?.cats?.[cid];
+      if (!existing) return;
+      const res = await showCategoryDialog(existing);
+      if (!res) return;
+      const updated = createCategory({
+        ...existing,
+        n: res.n,
+        i: res.i,
+        updatedAt: Date.now(),
+      });
+      await persistEntity('cats', cid, updated);
+      await refreshSnapshot();
+      showToast(`✏️ تم تعديل القسم «${res.n}»`);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-cat-move]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const raw = btn.getAttribute('data-cat-move') || '';
+      const [cid, dirStr] = raw.split(':');
+      const delta = Number(dirStr);
+      if (!cid || !delta) return;
+      const cats = getSortedActiveCategories(state.localSnapshot?.cats);
+      const idx = cats.findIndex((c) => c.id === cid);
+      const targetIdx = idx + delta;
+      if (idx < 0 || targetIdx < 0 || targetIdx >= cats.length) return;
+      const now = Date.now();
+      const a = createCategory({ ...cats[idx], order: targetIdx, updatedAt: now });
+      const b = createCategory({ ...cats[targetIdx], order: idx, updatedAt: now });
+      await persistEntity('cats', a.id, a);
+      await persistEntity('cats', b.id, b);
+      await refreshSnapshot();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-cat-delete]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const cid = btn.getAttribute('data-cat-delete');
+      const existing = state.localSnapshot?.cats?.[cid];
+      if (!existing) return;
+      const cats = getSortedActiveCategories(state.localSnapshot?.cats);
+      if (cats.length <= 1) {
+        showToast('⚠️ لا يمكن حذف آخر قسم متبقٍ');
+        return;
+      }
+      const fallbackCat = cats.find((c) => c.id !== cid) || cats[0];
+      const catItems = getActiveItemsList(state.localSnapshot?.items).filter((i) => i.c === cid);
+      const confirmed = await showConfirmDialog(
+        catItems.length > 0
+          ? `سيتم حذف القسم «${existing.n}» ونقل ${catItems.length} غرض إلى «${fallbackCat.n}». هل أنت متأكد؟`
+          : `هل تريد حذف القسم «${existing.n}»؟`
+      );
+      if (!confirmed) return;
+
+      const now = Date.now();
+      for (const item of catItems) {
+        const moved = createItem({ ...item, c: fallbackCat.id, updatedAt: now });
+        await persistEntity('items', item.id, moved);
+      }
+      const tomb = createCategory({ ...existing, deleted: true, updatedAt: now });
+      await persistEntity('cats', cid, tomb);
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`🗑️ حُذف القسم «${existing.n}»`, async () => {
+        const restoreTs = Date.now();
+        const restoredCat = createCategory({ ...existing, deleted: false, updatedAt: restoreTs });
+        await persistEntity('cats', cid, restoredCat);
+        for (const item of catItems) {
+          const restoredItem = createItem({ ...item, c: cid, updatedAt: restoreTs });
+          await persistEntity('items', item.id, restoredItem);
+        }
+        await refreshSnapshot();
+        render();
+      });
+    });
+  });
+
+  // --- Phase 1: Room & Auth Events ---
   document.getElementById('create-room-btn')?.addEventListener('click', async () => {
     const roomName = document.getElementById('room-name-inp')?.value?.trim() || 'عائلتي';
     const adminName = document.getElementById('admin-name-inp')?.value?.trim() || 'الأب';
@@ -323,6 +1090,7 @@ function bindViewEvents() {
     render();
   });
 
+  // --- Phase 0: Import & Diagnostics Events ---
   const fileInput = document.getElementById('legacy-file');
   if (fileInput) {
     fileInput.addEventListener('change', async (e) => {
@@ -390,7 +1158,7 @@ function bindViewEvents() {
     );
     if (!confirmed) return;
     const snap = await localStore.loadRoomSnapshot(state.roomId);
-    for (const col of ['cats', 'members', 'items', 'log']) {
+    for (const col of ['cats', 'members', 'items', 'requests', 'history', 'log']) {
       for (const id of Object.keys(snap[col] || {})) {
         await localStore.removeEntityHard(state.roomId, col, id);
       }
@@ -585,6 +1353,16 @@ async function init() {
         fontSize: safeFs,
         rtdbUrl: safeRtdb,
         useEmulator: Boolean(savedTheme.useEmulator),
+        currentRole: ['admin', 'member', 'child'].includes(savedTheme.currentRole)
+          ? savedTheme.currentRole
+          : 'admin',
+        memberName:
+          typeof savedTheme.memberName === 'string' && savedTheme.memberName.trim()
+            ? savedTheme.memberName.trim()
+            : 'الأب',
+        collapsedCats: Array.isArray(savedTheme.collapsedCats) ? savedTheme.collapsedCats : [],
+        aisleOrder: Array.isArray(savedTheme.aisleOrder) ? savedTheme.aisleOrder : [],
+        weeklyTemplate: Array.isArray(savedTheme.weeklyTemplate) ? savedTheme.weeklyTemplate : [],
       };
     }
     const pinRec = await localStore.getPref('pinLock', null);

@@ -105,6 +105,7 @@ export function createItem({
   dnAt = '',
   cl = '',
   note = '',
+  deferred = false,
   createdAt = Date.now(),
   updatedAt = Date.now(),
   deleted = false,
@@ -124,9 +125,30 @@ export function createItem({
     dnAt: dn ? (typeof dnAt === 'number' ? nonNegNum(dnAt, ts) : clampStr(dnAt, 40)) : '',
     cl: dn ? '' : clampStr(cl, 128),
     note: clampStr(note, 200),
+    deferred: dn ? false : Boolean(deferred),
     createdAt: nonNegNum(createdAt, ts),
     updatedAt: ts,
     deleted: Boolean(deleted),
+  };
+}
+
+export function createHistoryEntry({
+  id = '',
+  itemName = '',
+  c = 'super',
+  p = 0,
+  q = '',
+  at = Date.now(),
+  uid = '',
+} = {}) {
+  return {
+    id: clampStr(id, 80),
+    itemName: clampStr(itemName, 60),
+    c: clampStr(c, 64) || 'super',
+    p: nonNegNum(p, 0),
+    q: clampStr(q, 30),
+    at: nonNegNum(at, Date.now()),
+    uid: clampStr(uid, 128),
   };
 }
 

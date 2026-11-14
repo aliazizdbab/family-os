@@ -17,6 +17,9 @@ export const DEFAULT_FIREBASE_CONFIG = Object.freeze({
 export const state = {
   tab: 'home',
   roomId: DEFAULT_ROOM_ID,
+  listFilter: 'todo',
+  showDone: false,
+  searchQuery: '',
   prefs: {
     accent: DEFAULT_ACCENT,
     dark: false,
@@ -25,6 +28,11 @@ export const state = {
     firebaseAppId: DEFAULT_FIREBASE_CONFIG.appId,
     rtdbUrl: DEFAULT_RTDB_URL,
     useEmulator: false,
+    currentRole: 'admin',
+    memberName: 'الأب',
+    collapsedCats: [],
+    aisleOrder: [],
+    weeklyTemplate: [],
   },
   localSnapshot: null,
   lastPlan: null,
@@ -68,10 +76,16 @@ export async function refreshLocalSnapshot(roomId = state.roomId) {
   const outbox = await localStore.listOutbox(roomId);
   state.syncStatus.pendingCount = outbox.length;
 
-  if (!snap.meta && Object.keys(snap.cats).length === 0) {
-    state.localSnapshot = createEmptyRoomState('عائلتي');
-  } else {
-    state.localSnapshot = snap;
-  }
+  const fallback = createEmptyRoomState('عائلتي');
+  state.localSnapshot = {
+    meta: snap.meta || fallback.meta,
+    budget: snap.budget || fallback.budget,
+    cats: Object.keys(snap.cats || {}).length > 0 ? snap.cats : fallback.cats,
+    members: snap.members || {},
+    items: snap.items || {},
+    requests: snap.requests || {},
+    history: snap.history || {},
+    log: snap.log || {},
+  };
   return state.localSnapshot;
 }

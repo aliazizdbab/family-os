@@ -29,6 +29,13 @@ import {
   normalizeLegacyBackup,
   planLegacyImport,
 } from '../public/js/migrate.js';
+import {
+  buildWhatsAppReport,
+  computeBudgetSummary,
+  extractHistorySuggestions,
+  parseSharedTextCandidates,
+} from '../public/js/ui/list.js';
+import { sortCategoriesByAisle } from '../public/js/ui/store-mode.js';
 
 function buildSampleLegacyBackup() {
   return {
@@ -291,4 +298,56 @@ test('normalizeLegacyBackup also accepts Firebase object maps and rejects invali
   const badPlan = planLegacyImport('{invalid json', null);
   assert.equal(badPlan.ok, false);
   assert.ok(badPlan.errors.length > 0);
+});
+
+test('Phase 2 shopping helpers: budget summary, history suggestions, shared text parser, WhatsApp report, and aisle sort', () => {
+  const items = [
+    createItem({ id: '1', n: 'حليب', q: '2', p: 90, c: 'super', dn: true }),
+    createItem({ id: '2', n: 'لحم', q: '2 كجم', p: 85, c: 'meat', dn: false }),
+  ];
+  const budget = createBudget({ monthly: 200, perCat: { super: 100, meat: 80 } });
+  const summary = computeBudgetSummary(items, budget);
+  assert.equal(summary.estTotal, 175);
+  assert.equal(summary.paidTotal, 90);
+  assert.equal(summary.status, 'near'); // 175 / 200 = 87.5% >= 85%
+  assert.equal(summary.perCatWarnings.super.status, 'near'); // 90 / 100 = 90%
+  assert.equal(summary.perCatWarnings.meat.status, 'over'); // 85 / 80 > 100%
+
+  const suggestions = extractHistorySuggestions(
+    { h1: { itemName: 'زعتر', c: 'spices', p: 12, q: 'علبة' } },
+    {}
+  );
+  assert.ok(suggestions.some((s) => s.itemName === 'زعتر' && s.p === 12));
+
+  const shared = parseSharedTextCandidates('1. تفاح\n• موز\nخبز');
+  assert.equal(shared.length, 3);
+  assert.equal(shared[0].n, 'تفاح');
+  assert.equal(shared[1].n, 'موز');
+  assert.equal(shared[2].n, 'خبز');
+
+  const report = buildWhatsAppReport({
+    roomName: 'عائلتي',
+    categoriesList: [
+      { id: 'super', n: 'السوبرماركت', i: '🏪' },
+      { id: 'meat', n: 'اللحوم', i: '🥩' },
+    ],
+    itemsList: items,
+    summary,
+  });
+  assert.ok(report.includes('*قائمة مقاضي عائلتي*'));
+  assert.ok(report.includes('✅ حليب (2) - 90 د.ل'));
+  assert.ok(report.includes('⬜ لحم (2 كجم) - 85 د.ل'));
+
+  const sortedAisles = sortCategoriesByAisle(
+    {
+      super: { id: 'super', n: 'السوبرماركت', order: 0 },
+      bakery: { id: 'bakery', n: 'المخبز', order: 1 },
+      meat: { id: 'meat', n: 'اللحوم', order: 2 },
+    },
+    ['meat', 'bakery', 'super']
+  );
+  assert.deepEqual(
+    sortedAisles.map((c) => c.id),
+    ['meat', 'bakery', 'super']
+  );
 });

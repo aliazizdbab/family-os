@@ -322,11 +322,41 @@ p {
   gap: 0.5rem;
 }
 
+.list-item.stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.grow {
+  flex: 1;
+}
+
+.header-bar {
+  height: 0.5rem;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.header-bar-fill {
+  display: block;
+  height: 100%;
+  background: #fcd34d;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.header-bar-fill.over {
+  background: #ef4444;
+}
+
 .done-text {
   text-decoration: line-through;
   color: var(--mu);
 }
 
+.hidden,
 [hidden] {
   display: none !important;
 }

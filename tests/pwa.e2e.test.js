@@ -253,12 +253,89 @@ test(
     for await (const chunk of dlStream) chunks.push(chunk);
     const exported = JSON.parse(Buffer.concat(chunks).toString('utf8'));
 
+    assert.equal(exported.JSON ? false : true, true);
     assert.equal(exported.budget, 500);
     assert.equal(exported.items.length, 1);
     assert.equal('salt' in exported.members[0], false);
     assert.equal('hash' in exported.members[0], false);
     assert.equal(JSON.stringify(exported).includes('SECRET_'), false);
     assert.equal(JSON.stringify(exported).includes('AI_SECRET'), false);
+    assert.deepEqual(errors, []);
+  }
+);
+
+test(
+  'Phase 2 Shopping v2 E2E: add item, inline price edit without losing focus, mark done with Undo snackbar, and Store Mode defer',
+  { skip: !hasChrome },
+  async (t) => {
+    const { server, baseUrl } = await startStaticServer();
+    const browser = await chromium.launch({ executablePath: CHROME_PATH, headless: true });
+
+    t.after(async () => {
+      await browser.close();
+      server.close();
+    });
+
+    const context = await browser.newContext({
+      viewport: { width: 360, height: 780 },
+      locale: 'ar',
+    });
+    const page = await context.newPage();
+
+    const errors = [];
+    page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        errors.push(`console.error: ${msg.text()}`);
+      }
+    });
+
+    await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
+    await page.waitForSelector('#add-item-n');
+
+    // 1. Add item "قهوة عربية"
+    await page.fill('#add-item-n', 'قهوة عربية');
+    await page.fill('#add-item-q', '500 جم');
+    await page.fill('#add-item-p', '35');
+    await page.click('#add-item-btn');
+
+    await page.waitForSelector('[data-item-row]');
+    const listText = await page.textContent('#view-root');
+    assert.ok(listText.includes('قهوة عربية'));
+
+    // 2. Inline price update preserves input focus and updates header totals
+    const priceInput = page.locator('[data-inline-p]').first();
+    await priceInput.focus();
+    await priceInput.fill('45');
+    const isStillFocused = await priceInput.evaluate((el) => document.activeElement === el);
+    assert.equal(isStillFocused, true, 'Inline price input must keep focus while typing');
+    const headerTotals = await page.textContent('#header-totals');
+    assert.ok(headerTotals.includes('المقدر: 45 د.ل'));
+
+    // 3. Store Mode: defer item ("لا يوجد في المتجر") and undefer
+    await page.click('button[data-tab="store"]');
+    await page.waitForSelector('[data-store-defer]');
+    await page.click('[data-store-defer]');
+    await page.waitForSelector('[data-store-undefer]');
+    const storeTextAfterDefer = await page.textContent('#view-root');
+    assert.ok(storeTextAfterDefer.includes('غير متوفر في المتجر حالياً (1)'));
+    await page.click('[data-store-undefer]');
+    await page.waitForSelector('[data-store-check]');
+
+    // 4. Back to Home tab: mark item done -> moves to collapsed completed section + shows Undo snackbar
+    await page.click('button[data-tab="home"]');
+    await page.waitForSelector('[data-item-toggle]');
+    await page.click('[data-item-toggle]');
+    await page.waitForSelector('#completed-items-card');
+    const undoBtnVisible = await page.isVisible('#undo-snackbar-btn');
+    assert.equal(undoBtnVisible, true, 'Undo snackbar button must appear after marking item done');
+    const doneSectionText = await page.textContent('#completed-items-card');
+    assert.ok(doneSectionText.includes('المنجزة (1)'));
+
+    // Click Undo -> restores item to remaining list
+    await page.click('#undo-snackbar-btn');
+    await page.waitForSelector('[data-item-claim]');
+
     assert.deepEqual(errors, []);
   }
 );
