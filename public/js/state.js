@@ -4,6 +4,15 @@ import { localStore } from './store-idb.js';
 export const DEFAULT_ROOM_ID = 'family-v2-local';
 export const DEFAULT_FIREBASE_PROJECT_ID = 'family-requests-9e431';
 export const DEFAULT_RTDB_URL = 'https://family-requests-9e431-default-rtdb.firebaseio.com';
+export const DEFAULT_FIREBASE_CONFIG = Object.freeze({
+  projectId: 'family-requests-9e431',
+  appId: '1:405801026869:web:d0018ee630e330773c387c',
+  databaseURL: 'https://family-requests-9e431-default-rtdb.firebaseio.com',
+  storageBucket: 'family-requests-9e431.firebasestorage.app',
+  apiKey: 'AIzaSyDrMLHEOl7GZ7mLle48I1ZypzCF3p6r9ww',
+  authDomain: 'family-requests-9e431.firebaseapp.com',
+  messagingSenderId: '405801026869',
+});
 
 export const state = {
   tab: 'home',
@@ -12,8 +21,8 @@ export const state = {
     accent: DEFAULT_ACCENT,
     dark: false,
     fontSize: 16,
-    firebaseApiKey: '',
-    firebaseAppId: '',
+    firebaseApiKey: DEFAULT_FIREBASE_CONFIG.apiKey,
+    firebaseAppId: DEFAULT_FIREBASE_CONFIG.appId,
     rtdbUrl: DEFAULT_RTDB_URL,
     useEmulator: false,
   },

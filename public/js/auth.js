@@ -1,4 +1,9 @@
-import { DEFAULT_FIREBASE_PROJECT_ID, DEFAULT_RTDB_URL, state } from './state.js';
+import {
+  DEFAULT_FIREBASE_CONFIG,
+  DEFAULT_FIREBASE_PROJECT_ID,
+  DEFAULT_RTDB_URL,
+  state,
+} from './state.js';
 
 const FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
 const FIREBASE_AUTH_CDN = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
@@ -9,11 +14,12 @@ let emulatorConnected = false;
 
 export async function resolveFirebaseConfig(overrides = {}) {
   const baseConfig = {
-    apiKey: overrides.apiKey || state.prefs.firebaseApiKey || '',
+    ...DEFAULT_FIREBASE_CONFIG,
+    apiKey: overrides.apiKey || state.prefs.firebaseApiKey || DEFAULT_FIREBASE_CONFIG.apiKey,
     authDomain: `${DEFAULT_FIREBASE_PROJECT_ID}.firebaseapp.com`,
     databaseURL: overrides.databaseURL || state.prefs.rtdbUrl || DEFAULT_RTDB_URL,
     projectId: DEFAULT_FIREBASE_PROJECT_ID,
-    appId: overrides.appId || state.prefs.firebaseAppId || '',
+    appId: overrides.appId || state.prefs.firebaseAppId || DEFAULT_FIREBASE_CONFIG.appId,
   };
 
   if (typeof fetch === 'function') {
