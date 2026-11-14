@@ -118,7 +118,10 @@ test(
     assert.equal(layout.xssTriggered, false);
     assert.ok(layout.intentText.includes('حليب وخبز'));
 
-    // 2. Wait for Service Worker to register and take control (clients.claim)
+    // 2. Log in via Main Login Screen, then wait for Service Worker
+    await page.click('#login-submit-btn');
+    await page.waitForSelector('button[data-tab="prefs"]');
+
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
       if (!navigator.serviceWorker.controller) {
@@ -129,7 +132,9 @@ test(
       }
     });
 
-    // 2b. Verify Firebase connection probe button works in Home tab
+    // 2b. Verify Firebase connection probe button works in Unified Settings tab
+    await page.click('button[data-tab="prefs"]');
+    await page.waitForSelector('#probe-firebase-btn');
     await page.click('#probe-firebase-btn');
     await page.waitForFunction(
       () => document.getElementById('fb-probe-badge')?.textContent !== 'بانتظار الفحص',
@@ -291,6 +296,10 @@ test(
     });
 
     await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
+    await page.waitForSelector('#login-screen');
+    const famCodeVal = await page.inputValue('#login-family-code');
+    assert.equal(famCodeVal, 'family-v2-local');
+    await page.click('#login-submit-btn');
     await page.waitForSelector('#add-item-n');
 
     // 1. Add item "قهوة عربية" and verify visible labels
@@ -385,6 +394,53 @@ test(
     // Verify catalog-added item is in the Cart
     const finalCartText = await page.textContent('#view-root');
     assert.ok(finalCartText.includes('ملمع ومنظف الأثاث والأخشاب'));
+
+    // 5. Household Tasks tab: add task, verify 360px + 44px layout, complete task & earn points
+    await page.click('button[data-tab="tasks"]');
+    await page.waitForSelector('#task-title-inp');
+    await page.fill('#task-title-inp', 'ترتيب غرفة الجلوس');
+    await page.click('#add-task-btn');
+    await page.waitForSelector('[data-task-complete]');
+
+    const tasksLayout = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('button')].filter(
+        (b) => b.offsetParent !== null
+      );
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        minTouchHeight: Math.min(...buttons.map((b) => b.getBoundingClientRect().height)),
+      };
+    });
+    assert.ok(tasksLayout.scrollWidth <= tasksLayout.innerWidth);
+    assert.ok(tasksLayout.minTouchHeight >= 44);
+
+    await page.click('[data-task-complete]');
+    await page.waitForFunction(() => document.body.textContent.includes('أنجزها: الأب'), {
+      timeout: 5000,
+    });
+
+    // 6. Unified Settings & Developer Portal: switch account -> login as Developer -> create isolated family
+    await page.click('button[data-tab="prefs"]');
+    await page.waitForSelector('#members-manager-sec');
+    const settingsText = await page.textContent('#view-root');
+    assert.ok(settingsText.includes('ترتيب الأقسام الخاص بحسابي'));
+    assert.ok(settingsText.includes('إدارة أفراد العائلة والصلاحيات والأرقام السرية'));
+
+    await page.click('#logout-btn');
+    await page.waitForSelector('#login-dev-btn');
+    await page.click('#login-dev-btn');
+    await page.waitForSelector('#dev-portal-sec');
+    await page.fill('#dev-new-family-inp', 'family-test-2');
+    await page.click('#dev-add-family-btn');
+    await page.waitForFunction(() => document.body.textContent.includes('family-test-2'), {
+      timeout: 5000,
+    });
+    // Ensure new family cart is completely isolated (0 items of previous family)
+    await page.click('button[data-tab="home"]');
+    await page.waitForSelector('#add-item-n');
+    const isolatedText = await page.textContent('#view-root');
+    assert.equal(isolatedText.includes('قهوة عربية'), false);
 
     assert.deepEqual(errors, []);
   }

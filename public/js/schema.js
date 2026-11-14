@@ -3,8 +3,30 @@ export const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_LOG_ENTRIES = 200;
 export const DEFAULT_BUDGET = 250;
 export const DEFAULT_ACCENT = '#0f766e';
-export const ROLES = Object.freeze(['admin', 'member', 'child']);
+export const ROLES = Object.freeze(['developer', 'admin', 'mother', 'member', 'child']);
 export const REQUEST_STATUSES = Object.freeze(['pending', 'approved', 'rejected']);
+export const TASK_RECURRENCES = Object.freeze(['once', 'daily', 'weekly', 'monthly']);
+
+export const DEFAULT_FAMILY_MEMBERS = Object.freeze([
+  { id: 'mem_father', name: 'الأب', icon: '👑', role: 'admin', accessCode: '1234', points: 0 },
+  { id: 'mem_mother', name: 'الأم', icon: '🤱', role: 'mother', accessCode: '2222', points: 0 },
+  {
+    id: 'mem_son',
+    name: 'الابن (أحمد)',
+    icon: '🧒',
+    role: 'child',
+    accessCode: '0000',
+    points: 20,
+  },
+  {
+    id: 'mem_daughter',
+    name: 'الابنة (سارة)',
+    icon: '👧',
+    role: 'child',
+    accessCode: '0000',
+    points: 15,
+  },
+]);
 
 export const DEFAULT_CATS = Object.freeze([
   { id: 'laundry', i: '🧺', n: 'المغسلة', order: 0 },
@@ -54,8 +76,12 @@ export function createMember({
   name = '',
   icon = '🏠',
   role = 'member',
+  accessCode = '0000',
+  points = 0,
   off = false,
   joinedAt = Date.now(),
+  updatedAt = Date.now(),
+  deleted = false,
   pendingRelink = false,
   legacyId = '',
 } = {}) {
@@ -65,12 +91,48 @@ export function createMember({
     name: clampStr(name, 40),
     icon: clampStr(icon, 8) || '🏠',
     role: safeRole,
+    accessCode: clampStr(accessCode, 16) || '0000',
+    points: nonNegNum(points, 0),
     off: Boolean(off),
     joinedAt: joinedAt === null ? null : nonNegNum(joinedAt, Date.now()),
+    updatedAt: nonNegNum(updatedAt, Date.now()),
+    deleted: Boolean(deleted),
   };
   if (pendingRelink) out.pendingRelink = true;
   if (legacyId) out.legacyId = clampStr(legacyId, 64);
   return out;
+}
+
+export function createTask({
+  id = '',
+  title = '',
+  category = 'عامة',
+  assigneeId = 'all',
+  assigneeName = 'الجميع',
+  recurrence = 'once',
+  points = 10,
+  done = false,
+  doneBy = '',
+  doneAt = 0,
+  createdBy = '',
+  updatedAt = Date.now(),
+  deleted = false,
+} = {}) {
+  return {
+    id: clampStr(id, 64),
+    title: clampStr(title, 80),
+    category: clampStr(category, 40) || 'عامة',
+    assigneeId: clampStr(assigneeId, 128) || 'all',
+    assigneeName: clampStr(assigneeName, 40) || 'الجميع',
+    recurrence: TASK_RECURRENCES.includes(recurrence) ? recurrence : 'once',
+    points: nonNegNum(points, 0),
+    done: Boolean(done),
+    doneBy: done ? clampStr(doneBy, 40) : '',
+    doneAt: done ? nonNegNum(doneAt, Date.now()) : 0,
+    createdBy: clampStr(createdBy, 40),
+    updatedAt: nonNegNum(updatedAt, Date.now()),
+    deleted: Boolean(deleted),
+  };
 }
 
 export function createCategory({
@@ -311,6 +373,21 @@ export function validateRequest(r) {
   return { ok: errors.length === 0, errors };
 }
 
+export function validateTask(t) {
+  const errors = [];
+  if (!t || typeof t !== 'object') return { ok: false, errors: ['task must be object'] };
+  if (typeof t.title !== 'string' || !t.title.trim() || t.title.length > 80) {
+    errors.push('task.title must be 1..80 chars');
+  }
+  if (!TASK_RECURRENCES.includes(t.recurrence)) {
+    errors.push('task.recurrence invalid');
+  }
+  if (!Number.isFinite(t.points) || t.points < 0) {
+    errors.push('task.points must be >= 0');
+  }
+  return { ok: errors.length === 0, errors };
+}
+
 export function validateBudget(b) {
   const errors = [];
   if (!b || typeof b !== 'object') return { ok: false, errors: ['budget must be object'] };
@@ -371,6 +448,7 @@ const MIGRATIONS = {
       cats: data.cats && typeof data.cats === 'object' ? { ...data.cats } : {},
       items: data.items && typeof data.items === 'object' ? { ...data.items } : {},
       requests: data.requests && typeof data.requests === 'object' ? { ...data.requests } : {},
+      tasks: data.tasks && typeof data.tasks === 'object' ? { ...data.tasks } : {},
       history: data.history && typeof data.history === 'object' ? { ...data.history } : {},
       log: data.log && typeof data.log === 'object' ? { ...data.log } : {},
       budget: createBudget(data.budget || {}),

@@ -212,12 +212,13 @@ export class LocalStore {
   }
 
   async loadRoomSnapshot(roomId) {
-    const [doc, members, cats, items, requests, history, log] = await Promise.all([
+    const [doc, members, cats, items, requests, tasks, history, log] = await Promise.all([
       this.getRoomDoc(roomId),
       this.getCollection(roomId, 'members'),
       this.getCollection(roomId, 'cats'),
       this.getCollection(roomId, 'items'),
       this.getCollection(roomId, 'requests'),
+      this.getCollection(roomId, 'tasks'),
       this.getCollection(roomId, 'history'),
       this.getCollection(roomId, 'log'),
     ]);
@@ -228,6 +229,7 @@ export class LocalStore {
       cats,
       items,
       requests,
+      tasks,
       history,
       log,
     };

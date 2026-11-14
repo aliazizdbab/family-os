@@ -16,11 +16,19 @@ export function renderSampleItemRow(item) {
     </div>`;
 }
 
-export function getSortedActiveCategories(catsMap = {}) {
-  return Object.entries(catsMap || {})
+export function getSortedActiveCategories(catsMap = {}, personalOrder = []) {
+  const active = Object.entries(catsMap || {})
     .map(([id, cat]) => ({ ...cat, id }))
-    .filter((c) => !c.deleted)
-    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    .filter((c) => !c.deleted);
+  const customIdx = new Map(
+    (Array.isArray(personalOrder) ? personalOrder : []).map((id, i) => [id, i])
+  );
+  return active.sort((a, b) => {
+    const ai = customIdx.has(a.id) ? customIdx.get(a.id) : 1000 + (Number(a.order) || 0);
+    const bi = customIdx.has(b.id) ? customIdx.get(b.id) : 1000 + (Number(b.order) || 0);
+    if (ai !== bi) return ai - bi;
+    return String(a.id).localeCompare(String(b.id));
+  });
 }
 
 export function getActiveItemsList(itemsMap = {}) {
@@ -232,7 +240,9 @@ function renderItemRowHtml(item, cat, currentMemberName, isAdminOrOwner) {
 
 export function renderShoppingListView(appState) {
   const snap = appState.localSnapshot || {};
-  const categories = getSortedActiveCategories(snap.cats || {});
+  const memberId = appState.session?.memberId || 'mem_father';
+  const personalOrder = appState.prefs.personalCatOrder?.[memberId] || [];
+  const categories = getSortedActiveCategories(snap.cats || {}, personalOrder);
   const allItems = getActiveItemsList(snap.items || {});
   const budgetSummary = computeBudgetSummary(allItems, snap.budget);
   const suggestions = extractHistorySuggestions(snap.history, snap.items);
@@ -243,7 +253,7 @@ export function renderShoppingListView(appState) {
   const filter = appState.listFilter || 'todo';
   const currentRole = appState.prefs.currentRole || 'admin';
   const currentMemberName = appState.prefs.memberName || 'الأب';
-  const isAdmin = currentRole === 'admin';
+  const isAdmin = ['developer', 'admin', 'mother'].includes(currentRole);
   const isChild = currentRole === 'child';
 
   const remainingItems = allItems.filter((i) => !i.dn);

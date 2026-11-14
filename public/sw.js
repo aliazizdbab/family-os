@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'family-os-v0.3.1';
+const CACHE_VERSION = 'family-os-v0.4.0';
 
 const LOCAL_SHELL_ASSETS = [
   '/',
@@ -19,6 +19,7 @@ const LOCAL_SHELL_ASSETS = [
   '/js/ui/list.js',
   '/js/ui/settings.js',
   '/js/ui/store-mode.js',
+  '/js/ui/tasks.js',
   '/js/ui/chat.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

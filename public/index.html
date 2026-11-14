@@ -23,10 +23,17 @@
       <div class="w">
         <div class="row">
           <div>
-            <div class="header-sub">Family OS · مقاضي العائلة</div>
-            <h1>🛒 مقاضي العائلة</h1>
+            <div class="header-sub">Family OS · إدارة الأسرة والمهام والمقاضي</div>
+            <h1>🛒 Family OS</h1>
           </div>
           <div id="net-pill" class="status-pill" aria-live="polite">جارٍ التحقق...</div>
+        </div>
+        <div class="session-bar row" id="session-bar" hidden>
+          <div class="chips">
+            <span class="session-chip" id="session-family-badge" dir="ltr">🏠 family-v2-local</span>
+            <span class="session-chip" id="session-member-badge">👑 الأب</span>
+          </div>
+          <button type="button" id="logout-btn" class="btn session-btn">🚪 تبديل الحساب</button>
         </div>
         <div class="row" id="header-budget-row">
           <small id="header-totals" class="header-sub">المقدر: 0 د.ل · المدفوع: 0 د.ل</small>
@@ -57,8 +64,9 @@
     <nav class="nav" aria-label="التنقل الرئيسي">
       <button type="button" data-tab="home" class="on">🛒 السلة</button>
       <button type="button" data-tab="store">🏪 المتجر</button>
+      <button type="button" data-tab="tasks">📋 المهام</button>
       <button type="button" data-tab="import">📥 استيراد</button>
-      <button type="button" data-tab="prefs">🎨 المظهر</button>
+      <button type="button" data-tab="prefs">⚙️ الإعدادات</button>
     </nav>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

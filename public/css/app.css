@@ -117,16 +117,18 @@ p {
   padding: 1rem;
   background: var(--cd);
   border: 1px solid var(--bd);
-  border-radius: 1.2rem;
+  border-radius: 1.25rem;
   margin: 0.85rem 0;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
 }
 
 .card {
   background: var(--cd);
-  border-radius: 1.2rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--bd);
   margin: 0.85rem 0;
   overflow: hidden;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
 }
 
 .ch {
@@ -264,13 +266,15 @@ p {
 
 .nav button {
   flex: 1;
-  min-height: 48px;
+  min-height: 52px;
   border: 0;
   background: none;
-  padding: 0.5rem 0.25rem;
+  padding: 0.4rem 0.15rem;
+  font-size: 0.74rem;
   font-weight: 700;
   color: var(--mu);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .nav button.on {
@@ -378,4 +382,64 @@ p {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.65rem;
+}
+
+.session-bar {
+  margin: 0.45rem 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.session-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.session-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.login-card {
+  border-top: 4px solid var(--ac);
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 92px;
+  padding: 0.75rem 0.5rem;
+  border-radius: 1rem;
+  border: 2px solid var(--bd);
+  background: var(--bg);
+  color: var(--tx);
+  cursor: pointer;
+  text-align: center;
+}
+
+.profile-card.active {
+  border-color: var(--ac);
+  background: color-mix(in srgb, var(--ac) 12%, var(--cd));
+}
+
+.profile-ico {
+  font-size: 1.5rem;
+  line-height: 1;
 }

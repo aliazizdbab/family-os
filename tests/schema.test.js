@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   DEFAULT_BUDGET,
   DEFAULT_CATS,
+  DEFAULT_FAMILY_MEMBERS,
+  ROLES,
   SCHEMA_VERSION,
   TOMBSTONE_TTL_MS,
   compareLww,
@@ -14,6 +16,7 @@ import {
   createMember,
   createMeta,
   createRequest,
+  createTask,
   mergeEntity,
   migrateRoomSchema,
   pruneExpiredTombstones,
@@ -23,6 +26,7 @@ import {
   validateMember,
   validateMeta,
   validateRequest,
+  validateTask,
 } from '../public/js/schema.js';
 import {
   applyLegacyImport,
@@ -158,6 +162,15 @@ test('schema builders produce valid v1 entities and validators reject malformed 
   const req = createRequest({ id: 'r1', by: 'child1', n: 'عصير', c: 'super' });
   assert.equal(validateRequest(req).ok, true);
   assert.equal(validateRequest({ ...req, status: 'unknown' }).ok, false);
+
+  assert.equal(ROLES.includes('developer'), true);
+  assert.equal(ROLES.includes('mother'), true);
+  assert.equal(DEFAULT_FAMILY_MEMBERS.length, 4);
+
+  const task = createTask({ id: 't1', title: 'ترتيب الغرفة', recurrence: 'daily', points: 15 });
+  assert.equal(validateTask(task).ok, true);
+  assert.equal(validateTask({ ...task, title: '' }).ok, false);
+  assert.equal(validateTask({ ...task, recurrence: 'yearly' }).ok, false);
 
   const budget = createBudget({ monthly: 300, perCat: { super: 150 } });
   assert.equal(validateBudget(budget).ok, true);

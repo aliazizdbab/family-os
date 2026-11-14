@@ -1,12 +1,16 @@
 import {
   DEFAULT_ACCENT,
+  DEFAULT_FAMILY_MEMBERS,
   SCHEMA_VERSION,
   createBudget,
   createCategory,
   createEmptyRoomState,
   createHistoryEntry,
   createItem,
+  createLogEntry,
+  createMember,
   createRequest,
+  createTask,
 } from './schema.js';
 import {
   DEFAULT_ROOM_ID,
@@ -46,16 +50,17 @@ import {
   renderShoppingListView,
 } from './ui/list.js';
 import {
-  renderCategoriesAndBudgetCard,
-  renderFirebaseDiagnosticsCard,
-  renderRoomAndAuthCard,
-  renderThemeSettingsCard,
+  getEffectiveMembersList,
+  getRoleShortLabel,
+  renderLoginScreenView,
+  renderUnifiedSettingsView,
 } from './ui/settings.js';
 import {
   buildMergedStoreCatalog,
   renderStoreModeView,
   sortCategoriesByAisle,
 } from './ui/store-mode.js';
+import { renderTasksView } from './ui/tasks.js';
 
 export { esc };
 
@@ -87,6 +92,109 @@ function updateNetworkStatus() {
   const pill = document.getElementById('net-pill');
   if (!pill) return;
   pill.textContent = getSyncBadgeLabel(state.syncStatus, navigator.onLine);
+}
+
+function updateSessionBar() {
+  const bar = document.getElementById('session-bar');
+  const nav = document.querySelector('.nav');
+  const budgetRow = document.getElementById('header-budget-row');
+  const headerBar = document.querySelector('.header-bar');
+  const loggedIn = Boolean(state.session?.loggedIn);
+
+  if (bar) bar.hidden = !loggedIn;
+  if (nav) nav.hidden = !loggedIn;
+  if (budgetRow) budgetRow.hidden = !loggedIn;
+  if (headerBar) headerBar.hidden = !loggedIn;
+
+  if (!loggedIn) return;
+  const famBadge = document.getElementById('session-family-badge');
+  const memBadge = document.getElementById('session-member-badge');
+  if (famBadge) famBadge.textContent = `🏠 ${state.roomId}`;
+  if (memBadge) {
+    memBadge.textContent = `${getRoleShortLabel(state.prefs.currentRole)} · ${state.prefs.memberName}`;
+  }
+}
+
+async function saveSessionState() {
+  await localStore.setPref('activeSession', {
+    loggedIn: Boolean(state.session.loggedIn),
+    roomId: state.roomId,
+    memberId: state.session.memberId,
+    isDeveloper: Boolean(state.session.isDeveloper),
+  });
+}
+
+function applyMemberPersonalTheme(memberId) {
+  const custom = state.prefs.personalPrefsByMember?.[memberId];
+  if (custom && typeof custom === 'object') {
+    if (custom.accent) state.prefs.accent = custom.accent;
+    if (typeof custom.dark === 'boolean') state.prefs.dark = custom.dark;
+    if (custom.fontSize) state.prefs.fontSize = Number(custom.fontSize) || 16;
+  }
+}
+
+async function saveMemberPersonalTheme(memberId) {
+  if (!memberId) return;
+  if (!state.prefs.personalPrefsByMember || typeof state.prefs.personalPrefsByMember !== 'object') {
+    state.prefs.personalPrefsByMember = {};
+  }
+  state.prefs.personalPrefsByMember[memberId] = {
+    accent: state.prefs.accent,
+    dark: Boolean(state.prefs.dark),
+    fontSize: Number(state.prefs.fontSize) || 16,
+  };
+  await localStore.setPref('theme', state.prefs);
+}
+
+async function registerFamilyCode(famCode) {
+  const clean = String(famCode || '').trim();
+  if (!clean) return;
+  const existing = Array.isArray(state.prefs.familyRegistry) ? state.prefs.familyRegistry : [];
+  if (!existing.includes(clean)) {
+    state.prefs.familyRegistry = [...existing, clean];
+    await localStore.setPref('theme', state.prefs);
+  }
+}
+
+async function switchFamilyRoom(newRoomId) {
+  const clean = String(newRoomId || '').trim() || DEFAULT_ROOM_ID;
+  if (activeSyncEngine) {
+    activeSyncEngine.stop();
+    activeSyncEngine = null;
+  }
+  state.roomId = clean;
+  state.lastPlan = null;
+  await registerFamilyCode(clean);
+  await localStore.setPref('activeRoomId', clean);
+  await saveSessionState();
+  await refreshSnapshot();
+}
+
+async function ensureMembersSeeded() {
+  const existing = Object.keys(state.localSnapshot?.members || {});
+  if (existing.length > 0) return;
+  for (const m of DEFAULT_FAMILY_MEMBERS) {
+    const rec = createMember(m);
+    await persistEntity('members', rec.id, rec);
+  }
+}
+
+async function recordActivityLog(action, target) {
+  const now = Date.now();
+  const id = `log_${now}_${Math.random().toString(36).slice(2, 6)}`;
+  const entry = createLogEntry({
+    id,
+    at: now,
+    uid: state.session.memberId || state.firebaseStatus.uid || 'local',
+    actorName: state.prefs.memberName || 'المستخدم',
+    action,
+    target,
+  });
+  if (!state.localSnapshot.log) {
+    state.localSnapshot.log = {};
+  }
+  state.localSnapshot.log[id] = entry;
+  await localStore.putEntity(state.roomId, 'log', id, entry);
 }
 
 function updateHeaderTotals() {
@@ -233,7 +341,7 @@ function renderHomeTab() {
   const snap = state.localSnapshot;
   const catsCount = getSortedActiveCategories(snap?.cats).length;
   const itemsCount = getActiveItemsList(snap?.items).length;
-  const membersCount = Object.keys(snap?.members || {}).length;
+  const membersCount = getEffectiveMembersList(snap).length;
   const budget = snap?.budget?.monthly ?? 250;
 
   return `
@@ -252,26 +360,6 @@ function renderHomeTab() {
     </section>
 
     ${renderShoppingListView(state)}
-
-    <details class="sec stack">
-      <summary class="row">
-        <strong>⚙️ إعدادات الغرفة والمزامنة وFirebase</strong>
-        <span class="badge-ok">اضغط للفتح</span>
-      </summary>
-      ${renderRoomAndAuthCard(state)}
-      <section class="card">
-        <div class="ch">
-          <span>✅ جاهزية التشغيل المحلي والسحابي</span>
-          <span class="mu">IndexedDB + Outbox + SW</span>
-        </div>
-        <div class="list-item"><span>ملف التثبيت والاختصارات (Manifest)</span><span class="badge-ok">مفعّل</span></div>
-        <div class="list-item"><span>التخزين المؤقت للعمل دون إنترنت (SW)</span><span class="badge-ok" id="sw-status">جارٍ الفحص…</span></div>
-        <div class="list-item"><span>محرك قواعد البيانات المحلي (IndexedDB)</span><span class="badge-ok">متصل</span></div>
-        <div class="list-item"><span>قواعد الأمان والمصادقة المجهولة (v2 Rules)</span><span class="badge-ok">مفعّلة</span></div>
-      </section>
-    </details>
-
-    ${renderFirebaseDiagnosticsCard(state.firebaseStatus, state.prefs)}
   `;
 }
 
@@ -339,15 +427,13 @@ function renderImportTab() {
 }
 
 function renderPrefsTab() {
-  return `
-    ${renderCategoriesAndBudgetCard(state)}
-    ${renderThemeSettingsCard(state.prefs, COLORS, pinLockEnabled)}
-  `;
+  return renderUnifiedSettingsView(state, COLORS, pinLockEnabled);
 }
 
 function render() {
   applyTheme();
   updateNetworkStatus();
+  updateSessionBar();
   updateHeaderTotals();
   document.querySelectorAll('.nav button').forEach((btn) => {
     btn.classList.toggle('on', btn.dataset.tab === state.tab);
@@ -356,8 +442,15 @@ function render() {
   const root = document.getElementById('view-root');
   if (!root) return;
 
+  if (!state.session.loggedIn) {
+    root.innerHTML = renderLoginScreenView(state);
+    bindViewEvents();
+    return;
+  }
+
   if (state.tab === 'home') root.innerHTML = renderHomeTab();
   else if (state.tab === 'store') root.innerHTML = renderStoreModeView(state);
+  else if (state.tab === 'tasks') root.innerHTML = renderTasksView(state);
   else if (state.tab === 'import') root.innerHTML = renderImportTab();
   else root.innerHTML = renderPrefsTab();
 
@@ -428,6 +521,89 @@ async function addNewShoppingItem({ n, q = '', p = 0, c = 'super', u = false, no
 }
 
 function bindViewEvents() {
+  // --- Login & Multi-Family Isolation Events ---
+  document.getElementById('switch-family-code-btn')?.addEventListener('click', async () => {
+    const code = document.getElementById('login-family-code')?.value?.trim();
+    if (!code) {
+      showToast('⚠️ أدخل كود العائلة أولاً');
+      return;
+    }
+    await switchFamilyRoom(code);
+    showToast(`🏠 تم تحميل بيانات عائلة: ${code}`);
+    render();
+  });
+
+  document.querySelectorAll('[data-pick-family]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const code = btn.getAttribute('data-pick-family');
+      if (!code) return;
+      await switchFamilyRoom(code);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-login-member]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.loginSelectedMemberId = btn.getAttribute('data-login-member') || 'mem_father';
+      render();
+    });
+  });
+
+  document.getElementById('login-submit-btn')?.addEventListener('click', async () => {
+    const famInput = document.getElementById('login-family-code')?.value?.trim();
+    if (famInput && famInput !== state.roomId) {
+      await switchFamilyRoom(famInput);
+    } else {
+      await registerFamilyCode(state.roomId);
+    }
+    const members = getEffectiveMembersList(state.localSnapshot);
+    const chosen = members.find((m) => m.id === state.loginSelectedMemberId) || members[0];
+    if (!chosen) return;
+    const enteredPin = document.getElementById('login-pin-inp')?.value?.trim() || '';
+    const expectedPin = String(chosen.accessCode || '0000').trim();
+    if (enteredPin !== expectedPin) {
+      showToast('❌ الرقم السري غير صحيح لهذا الحساب');
+      return;
+    }
+    state.session = {
+      loggedIn: true,
+      memberId: chosen.id,
+      isDeveloper: chosen.role === 'developer',
+    };
+    state.prefs.currentRole = chosen.role || 'member';
+    state.prefs.memberName = chosen.name || 'عضو';
+    applyMemberPersonalTheme(chosen.id);
+    await localStore.setPref('theme', state.prefs);
+    await saveSessionState();
+    await recordActivityLog('تسجيل دخول', chosen.name);
+    state.tab = 'home';
+    showToast(`🔓 أهلاً بك ${chosen.name}`);
+    render();
+  });
+
+  document.getElementById('login-dev-btn')?.addEventListener('click', async () => {
+    const devPin = document.getElementById('login-dev-pin')?.value?.trim() || '';
+    if (devPin !== '9999') {
+      showToast('❌ الرمز السري للمبرمج غير صحيح');
+      return;
+    }
+    await registerFamilyCode(state.roomId);
+    state.session = {
+      loggedIn: true,
+      memberId: 'dev_support',
+      isDeveloper: true,
+    };
+    state.prefs.currentRole = 'developer';
+    state.prefs.memberName = 'المبرمج (الدعم الفني)';
+    applyMemberPersonalTheme('dev_support');
+    await localStore.setPref('theme', state.prefs);
+    await saveSessionState();
+    await recordActivityLog('دخول دعم فني', 'بوابة المبرمج');
+    state.tab = 'prefs';
+    showToast('👨‍💻 تم الدخول إلى بوابة المبرمج الشاملة');
+    render();
+  });
+
   document.getElementById('confirm-share-add-btn')?.addEventListener('click', async () => {
     const candidates = parseSharedTextCandidates(pendingSharedText);
     if (!candidates.length) return;
@@ -1018,15 +1194,309 @@ function bindViewEvents() {
     });
   });
 
-  // --- Phase 2: Categories & Budget & Role Manager Events ---
-  document.getElementById('save-role-btn')?.addEventListener('click', async () => {
-    const memberName = document.getElementById('member-name-inp')?.value?.trim() || 'الأب';
-    const role = document.getElementById('role-select')?.value || 'admin';
-    state.prefs.memberName = memberName;
-    state.prefs.currentRole = role;
-    await localStore.setPref('theme', state.prefs);
-    showToast(`👤 تم التبديل إلى: ${memberName} (${role})`);
+  // --- Personal Category Order, Members, Budget, Categories & Developer Events ---
+  document.querySelectorAll('[data-personal-cat-move]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const raw = btn.getAttribute('data-personal-cat-move') || '';
+      const [cid, dirStr] = raw.split(':');
+      const delta = Number(dirStr);
+      if (!cid || !delta) return;
+      const memberId = state.session.memberId || 'mem_father';
+      const currentOrder = state.prefs.personalCatOrder?.[memberId] || [];
+      const orderedIds = getSortedActiveCategories(
+        state.localSnapshot?.cats || {},
+        currentOrder
+      ).map((c) => c.id);
+      const idx = orderedIds.indexOf(cid);
+      const targetIdx = idx + delta;
+      if (idx < 0 || targetIdx < 0 || targetIdx >= orderedIds.length) return;
+      [orderedIds[idx], orderedIds[targetIdx]] = [orderedIds[targetIdx], orderedIds[idx]];
+      if (!state.prefs.personalCatOrder || typeof state.prefs.personalCatOrder !== 'object') {
+        state.prefs.personalCatOrder = {};
+      }
+      state.prefs.personalCatOrder[memberId] = orderedIds;
+      await localStore.setPref('theme', state.prefs);
+      render();
+    });
+  });
+
+  document.getElementById('reset-personal-cat-btn')?.addEventListener('click', async () => {
+    const memberId = state.session.memberId || 'mem_father';
+    if (state.prefs.personalCatOrder && state.prefs.personalCatOrder[memberId]) {
+      delete state.prefs.personalCatOrder[memberId];
+      await localStore.setPref('theme', state.prefs);
+    }
+    showToast('↩️ تم استعادة ترتيب الأقسام الافتراضي لحسابك');
     render();
+  });
+
+  document.getElementById('add-member-btn')?.addEventListener('click', async () => {
+    const name = document.getElementById('new-member-name')?.value?.trim() || '';
+    if (!name) {
+      showToast('⚠️ اكتب اسم الفرد أولاً');
+      return;
+    }
+    const icon = document.getElementById('new-member-icon')?.value?.trim() || '🧑';
+    const role = document.getElementById('new-member-role')?.value || 'child';
+    const accessCode = document.getElementById('new-member-pin')?.value?.trim() || '0000';
+    await ensureMembersSeeded();
+    const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const member = createMember({
+      id,
+      name,
+      icon,
+      role,
+      accessCode,
+      points: 0,
+      updatedAt: Date.now(),
+    });
+    await persistEntity('members', id, member);
+    await recordActivityLog('إضافة عضو', name);
+    await refreshSnapshot();
+    showToast(`✅ تمت إضافة «${name}» للعائلة`);
+    render();
+  });
+
+  document.querySelectorAll('[data-member-role]').forEach((sel) => {
+    sel.addEventListener('change', async () => {
+      const mid = sel.getAttribute('data-member-role');
+      if (!mid) return;
+      await ensureMembersSeeded();
+      const existing = state.localSnapshot?.members?.[mid];
+      if (!existing) return;
+      const updated = createMember({ ...existing, role: sel.value, updatedAt: Date.now() });
+      await persistEntity('members', mid, updated);
+      if (state.session.memberId === mid) {
+        state.prefs.currentRole = updated.role;
+        await localStore.setPref('theme', state.prefs);
+      }
+      await recordActivityLog('تعديل صلاحية', `${updated.name} -> ${updated.role}`);
+      await refreshSnapshot();
+      showToast(`🛡️ تم تحديث صلاحية ${updated.name}`);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-member-pin]').forEach((inp) => {
+    inp.addEventListener('change', async () => {
+      const mid = inp.getAttribute('data-member-pin');
+      if (!mid) return;
+      await ensureMembersSeeded();
+      const existing = state.localSnapshot?.members?.[mid];
+      if (!existing) return;
+      const newPin = inp.value.trim() || '0000';
+      const updated = createMember({ ...existing, accessCode: newPin, updatedAt: Date.now() });
+      await persistEntity('members', mid, updated);
+      await recordActivityLog('تعديل رمز سري', updated.name);
+      showToast(`🔑 تم تحديث الرقم السري لـ ${updated.name}`);
+    });
+  });
+
+  document.querySelectorAll('[data-member-delete]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const mid = btn.getAttribute('data-member-delete');
+      if (!mid) return;
+      await ensureMembersSeeded();
+      const existing = state.localSnapshot?.members?.[mid];
+      if (!existing) return;
+      const activeMembers = getEffectiveMembersList(state.localSnapshot);
+      if (activeMembers.length <= 1) {
+        showToast('⚠️ لا يمكن حذف آخر فرد في العائلة');
+        return;
+      }
+      const ok = await showConfirmDialog(`هل تريد إزالة «${existing.name}» من العائلة؟`);
+      if (!ok) return;
+      const tomb = createMember({ ...existing, deleted: true, off: true, updatedAt: Date.now() });
+      await persistEntity('members', mid, tomb);
+      await recordActivityLog('حذف عضو', existing.name);
+      await refreshSnapshot();
+      showToast(`🗑️ تمت إزالة ${existing.name}`);
+      render();
+    });
+  });
+
+  document.getElementById('dev-add-family-btn')?.addEventListener('click', async () => {
+    const famCode = document.getElementById('dev-new-family-inp')?.value?.trim() || '';
+    if (!famCode) {
+      showToast('⚠️ أدخل كود العائلة الجديدة');
+      return;
+    }
+    await switchFamilyRoom(famCode);
+    await recordActivityLog('تأسيس عائلة', famCode);
+    showToast(`🗂️ تم إنشاء وفتح عائلة: ${famCode}`);
+    render();
+  });
+
+  document.querySelectorAll('[data-dev-switch-family]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const famCode = btn.getAttribute('data-dev-switch-family');
+      if (!famCode) return;
+      await switchFamilyRoom(famCode);
+      showToast(`📂 تم التبديل إلى عائلة: ${famCode}`);
+      render();
+    });
+  });
+
+  // --- Household Tasks Events ---
+  document.querySelectorAll('[data-task-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.taskFilter = btn.getAttribute('data-task-filter') || 'all';
+      render();
+    });
+  });
+
+  const createAndPersistTask = async ({ title, assigneeId, recurrence, points }) => {
+    const cleanTitle = String(title || '').trim();
+    if (!cleanTitle) {
+      showToast('⚠️ اكتب عنوان المهمة أولاً');
+      return;
+    }
+    const members = getEffectiveMembersList(state.localSnapshot);
+    const targetMember = members.find((m) => m.id === assigneeId);
+    const now = Date.now();
+    const id = `tsk_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    const task = createTask({
+      id,
+      title: cleanTitle,
+      assigneeId: targetMember ? targetMember.id : 'all',
+      assigneeName: targetMember ? targetMember.name : 'الجميع',
+      recurrence: recurrence || 'once',
+      points: Math.max(0, Number(points) || 0),
+      createdBy: state.prefs.memberName || 'الأب',
+      updatedAt: now,
+    });
+    await persistEntity('tasks', id, task);
+    await recordActivityLog('إضافة مهمة', cleanTitle);
+    await refreshSnapshot();
+    showToast(`📋 أُضيفت المهمة «${cleanTitle}»`);
+    render();
+  };
+
+  document.getElementById('add-task-btn')?.addEventListener('click', async () => {
+    await createAndPersistTask({
+      title: document.getElementById('task-title-inp')?.value,
+      assigneeId: document.getElementById('task-assignee-sel')?.value || 'all',
+      recurrence: document.getElementById('task-recur-sel')?.value || 'once',
+      points: document.getElementById('task-points-inp')?.value ?? 10,
+    });
+  });
+
+  document.querySelectorAll('[data-task-tpl]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await createAndPersistTask({
+        title: btn.getAttribute('data-task-tpl'),
+        assigneeId: document.getElementById('task-assignee-sel')?.value || 'all',
+        recurrence: btn.getAttribute('data-task-tpl-recur') || 'daily',
+        points: Number(btn.getAttribute('data-task-tpl-pts')) || 10,
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-task-complete]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const tid = btn.getAttribute('data-task-complete');
+      const existing = state.localSnapshot?.tasks?.[tid];
+      if (!existing) return;
+      const prevTask = { ...existing };
+      const now = Date.now();
+      const completerName = state.prefs.memberName || 'الأب';
+      const updatedTask = createTask({
+        ...existing,
+        done: true,
+        doneBy: completerName,
+        doneAt: now,
+        updatedAt: now,
+      });
+      await persistEntity('tasks', tid, updatedTask);
+
+      // Award points to the completing child/member or explicit assignee
+      await ensureMembersSeeded();
+      const targetId =
+        existing.assigneeId && existing.assigneeId !== 'all'
+          ? existing.assigneeId
+          : state.session.memberId;
+      const memberRec = state.localSnapshot?.members?.[targetId];
+      const earned = Number(existing.points) || 0;
+      if (memberRec && earned > 0) {
+        const nextMember = createMember({
+          ...memberRec,
+          points: (Number(memberRec.points) || 0) + earned,
+          updatedAt: now,
+        });
+        await persistEntity('members', targetId, nextMember);
+      }
+
+      await recordActivityLog('إنجاز مهمة', `${existing.title} (+${earned} ⭐)`);
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`✅ أُنجزت «${existing.title}» (+${earned} ⭐)`, async () => {
+        const reverted = createTask({
+          ...prevTask,
+          done: false,
+          doneBy: '',
+          updatedAt: Date.now(),
+        });
+        await persistEntity('tasks', tid, reverted);
+        if (memberRec && earned > 0) {
+          const curMem = state.localSnapshot?.members?.[targetId] || memberRec;
+          await persistEntity(
+            'members',
+            targetId,
+            createMember({
+              ...curMem,
+              points: Math.max(0, (Number(curMem.points) || 0) - earned),
+              updatedAt: Date.now(),
+            })
+          );
+        }
+        await refreshSnapshot();
+        render();
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-task-reset]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const tid = btn.getAttribute('data-task-reset');
+      const existing = state.localSnapshot?.tasks?.[tid];
+      if (!existing) return;
+      const resetTask = createTask({
+        ...existing,
+        done: false,
+        doneBy: '',
+        doneAt: 0,
+        updatedAt: Date.now(),
+      });
+      await persistEntity('tasks', tid, resetTask);
+      await refreshSnapshot();
+      showToast(`🔄 تم تجديد دورة «${existing.title}»`);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-task-delete]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const tid = btn.getAttribute('data-task-delete');
+      const existing = state.localSnapshot?.tasks?.[tid];
+      if (!existing) return;
+      const prevCopy = { ...existing };
+      await persistEntity(
+        'tasks',
+        tid,
+        createTask({ ...existing, deleted: true, updatedAt: Date.now() })
+      );
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`🗑️ حُذفت مهمة «${existing.title}»`, async () => {
+        await persistEntity(
+          'tasks',
+          tid,
+          createTask({ ...prevCopy, deleted: false, updatedAt: Date.now() })
+        );
+        await refreshSnapshot();
+        render();
+      });
+    });
   });
 
   document.getElementById('save-budget-btn')?.addEventListener('click', async () => {
@@ -1290,7 +1760,7 @@ function bindViewEvents() {
     );
     if (!confirmed) return;
     const snap = await localStore.loadRoomSnapshot(state.roomId);
-    for (const col of ['cats', 'members', 'items', 'requests', 'history', 'log']) {
+    for (const col of ['cats', 'members', 'items', 'requests', 'tasks', 'history', 'log']) {
       for (const id of Object.keys(snap[col] || {})) {
         await localStore.removeEntityHard(state.roomId, col, id);
       }
@@ -1331,20 +1801,20 @@ function bindViewEvents() {
   document.querySelectorAll('[data-color]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       state.prefs.accent = btn.dataset.color;
-      await localStore.setPref('theme', state.prefs);
+      await saveMemberPersonalTheme(state.session.memberId);
       render();
     });
   });
 
   document.getElementById('toggle-dark')?.addEventListener('click', async () => {
     state.prefs.dark = !state.prefs.dark;
-    await localStore.setPref('theme', state.prefs);
+    await saveMemberPersonalTheme(state.session.memberId);
     render();
   });
 
   document.getElementById('font-range')?.addEventListener('input', async (e) => {
     state.prefs.fontSize = Number(e.target.value) || 16;
-    await localStore.setPref('theme', state.prefs);
+    await saveMemberPersonalTheme(state.session.memberId);
     applyTheme();
   });
 
@@ -1409,9 +1879,14 @@ function registerServiceWorker() {
       // Service worker unavailable in restricted contexts
     });
 
+  const hadController = Boolean(navigator.serviceWorker.controller);
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
+    const swEl = document.getElementById('sw-status');
+    if (swEl) {
+      swEl.textContent = 'مفعّل وجاهز دون نت';
+    }
+    if (hadController && !refreshing) {
       refreshing = true;
       window.location.reload();
     }
@@ -1467,7 +1942,28 @@ async function init() {
     });
   });
 
+  document.getElementById('logout-btn')?.addEventListener('click', async () => {
+    state.session.loggedIn = false;
+    await saveSessionState();
+    render();
+  });
+
   try {
+    const savedRoomId = await localStore.getPref('activeRoomId', null);
+    if (typeof savedRoomId === 'string' && savedRoomId.trim()) {
+      state.roomId = savedRoomId.trim();
+    }
+    const savedSession = await localStore.getPref('activeSession', null);
+    if (savedSession && typeof savedSession === 'object') {
+      state.session = {
+        loggedIn: Boolean(savedSession.loggedIn),
+        memberId: savedSession.memberId || 'mem_father',
+        isDeveloper: Boolean(savedSession.isDeveloper),
+      };
+      if (typeof savedSession.roomId === 'string' && savedSession.roomId.trim()) {
+        state.roomId = savedSession.roomId.trim();
+      }
+    }
     const savedTheme = await localStore.getPref('theme', null);
     if (savedTheme && typeof savedTheme === 'object') {
       const safeAccent = /^#[0-9a-f]{6}$/i.test(savedTheme.accent || '')
@@ -1485,7 +1981,9 @@ async function init() {
         fontSize: safeFs,
         rtdbUrl: safeRtdb,
         useEmulator: Boolean(savedTheme.useEmulator),
-        currentRole: ['admin', 'member', 'child'].includes(savedTheme.currentRole)
+        currentRole: ['developer', 'admin', 'mother', 'member', 'child'].includes(
+          savedTheme.currentRole
+        )
           ? savedTheme.currentRole
           : 'admin',
         memberName:
@@ -1496,7 +1994,22 @@ async function init() {
         aisleOrder: Array.isArray(savedTheme.aisleOrder) ? savedTheme.aisleOrder : [],
         weeklyTemplate: Array.isArray(savedTheme.weeklyTemplate) ? savedTheme.weeklyTemplate : [],
         customCatalog: Array.isArray(savedTheme.customCatalog) ? savedTheme.customCatalog : [],
+        familyRegistry:
+          Array.isArray(savedTheme.familyRegistry) && savedTheme.familyRegistry.length > 0
+            ? savedTheme.familyRegistry
+            : [state.roomId],
+        personalCatOrder:
+          savedTheme.personalCatOrder && typeof savedTheme.personalCatOrder === 'object'
+            ? savedTheme.personalCatOrder
+            : {},
+        personalPrefsByMember:
+          savedTheme.personalPrefsByMember && typeof savedTheme.personalPrefsByMember === 'object'
+            ? savedTheme.personalPrefsByMember
+            : {},
       };
+    }
+    if (state.session.loggedIn) {
+      applyMemberPersonalTheme(state.session.memberId);
     }
     const pinRec = await localStore.getPref('pinLock', null);
     pinLockEnabled = Boolean(pinRec?.enabled);
