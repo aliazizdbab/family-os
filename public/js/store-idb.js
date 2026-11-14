@@ -87,6 +87,15 @@ export class LocalStore {
     return next;
   }
 
+  async getEntity(roomId, collection, id) {
+    const db = await this.open();
+    const tx = db.transaction(STORES.ENTITIES, 'readonly');
+    const row = await requestToPromise(
+      tx.objectStore(STORES.ENTITIES).get(entityKey(roomId, collection, id))
+    );
+    return row ? row.data : null;
+  }
+
   async getCollection(roomId, collection) {
     const db = await this.open();
     const tx = db.transaction(STORES.ENTITIES, 'readonly');

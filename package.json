@@ -15,8 +15,10 @@
     "emulators": "npx -y firebase-tools@latest emulators:start --only auth,database,hosting"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "eslint": "^10.15.0",
     "fake-indexeddb": "^6.2.8",
+    "firebase": "^13.1.0",
     "playwright-core": "^1.65.1",
     "prettier": "^3.10.1"
   }
