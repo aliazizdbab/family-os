@@ -159,7 +159,8 @@ function renderImportTab() {
   return `
     <section class="sec stack">
       <h2>📥 استيراد بيانات التطبيق القديم (تجريبي)</h2>
-      <p class="mu">اختر ملف النسخة الاحتياطية (<code>family-backup.json</code>) من التطبيق القديم. تُجرى معاينة للأعداد أولاً مع تجاهل رموز PIN ومفاتيح الذكاء الاصطناعي.</p>
+      <p class="mu">يمكنك جلب بيانات العائلة مباشرة من قاعدة بيانات Firebase القديمة بضغطة واحدة، أو اختيار ملف النسخة الاحتياطية (<code>family-backup.json</code>). تُجرى معاينة للأعداد أولاً مع تجاهل رموز PIN ومفاتيح الذكاء الاصطناعي.</p>
+      <button type="button" id="fetch-legacy-rtdb-btn" class="btn full">☁️ جلب بيانات العائلة مباشرة من Firebase القديم</button>
       <input type="file" id="legacy-file" class="input" accept="application/json,.json">
       <textarea id="legacy-json" class="textarea" rows="4" dir="ltr" placeholder="أو الصق محتوى JSON هنا...">${esc(state.rawImportText)}</textarea>
       <div class="g2">
@@ -213,6 +214,31 @@ function bindViewEvents() {
       runDryRun();
     });
   }
+
+  document.getElementById('fetch-legacy-rtdb-btn')?.addEventListener('click', async () => {
+    const baseUrl = String(state.prefs.rtdbUrl || DEFAULT_RTDB_URL).replace(/\/+$/, '');
+    const targetUrl = `${baseUrl}/rooms/family.json?t=${Date.now()}`;
+    showToast('⏳ جارٍ جلب بيانات العائلة من Firebase القديم...');
+    try {
+      const response = await fetch(targetUrl, { cache: 'no-store' });
+      if (!response.ok) {
+        showToast(`❌ تعذّر الجلب (HTTP ${response.status})`);
+        return;
+      }
+      const rawData = await response.json();
+      if (!rawData || typeof rawData !== 'object') {
+        showToast('⚠️ لم يتم العثور على بيانات في المسار /rooms/family');
+        return;
+      }
+      state.rawImportText = JSON.stringify(rawData);
+      const ta = document.getElementById('legacy-json');
+      if (ta) ta.value = state.rawImportText;
+      runDryRun();
+      showToast('✅ تم جلب بيانات العائلة وعرض المعاينة التجريبية');
+    } catch {
+      showToast('⚠️ تعذّر الاتصال بقاعدة البيانات؛ تحقق من الإنترنت');
+    }
+  });
 
   document.getElementById('dry-run-btn')?.addEventListener('click', () => {
     const ta = document.getElementById('legacy-json');
