@@ -1,0 +1,12 @@
+.firebase/
+node_modules/
+emulator-data/
+firebase-debug.log
+ui-debug.log
+database-debug.log
+*.local
+.env
+.env.*
+coverage/
+test-results/
+playwright-report/

@@ -1,0 +1,82 @@
+{
+  "rules": {
+    "rooms": {
+      "$legacyRoom": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "ai": {
+      "$legacyRoom": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "v2": {
+      "rooms": {
+        "$rid": {
+          ".read": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid).exists() && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true",
+          "meta": {
+            ".write": "auth != null && (!data.exists() || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin')",
+            ".validate": "newData.hasChildren(['name', 'createdAt', 'schemaVersion']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 60 && newData.child('createdAt').isNumber() && newData.child('schemaVersion').isNumber() && newData.child('schemaVersion').val() >= 1",
+            "invite": {
+              ".validate": "newData.hasChildren(['token', 'expiresAt']) && newData.child('token').isString() && newData.child('token').val().length >= 6 && newData.child('token').val().length <= 128 && newData.child('expiresAt').isNumber()"
+            }
+          },
+          "members": {
+            "$uid": {
+              ".write": "auth != null && (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin' || (auth.uid === $uid && !data.exists() && !data.parent().exists() && newData.child('role').val() === 'admin') || (auth.uid === $uid && !data.exists() && (newData.child('role').val() === 'member' || newData.child('role').val() === 'child') && newData.child('token').isString() && newData.parent().parent().child('meta/invite/token').val() === newData.child('token').val() && newData.parent().parent().child('meta/invite/expiresAt').val() > now))",
+              ".validate": "newData.hasChildren(['name', 'icon', 'role', 'off', 'joinedAt']) && newData.child('name').isString() && newData.child('name').val().length >= 1 && newData.child('name').val().length <= 40 && newData.child('icon').isString() && newData.child('icon').val().length >= 1 && newData.child('icon').val().length <= 16 && (newData.child('role').val() === 'admin' || newData.child('role').val() === 'member' || newData.child('role').val() === 'child') && newData.child('off').isBoolean() && newData.child('joinedAt').isNumber() && !newData.hasChild('salt') && !newData.hasChild('hash')"
+            }
+          },
+          "cats": {
+            "$cid": {
+              ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'member')",
+              ".validate": "newData.hasChildren(['n', 'i', 'order', 'updatedAt', 'deleted']) && newData.child('n').isString() && newData.child('n').val().length >= 1 && newData.child('n').val().length <= 40 && newData.child('i').isString() && newData.child('i').val().length >= 1 && newData.child('i').val().length <= 16 && newData.child('order').isNumber() && newData.child('updatedAt').isNumber() && newData.child('deleted').isBoolean()"
+            }
+          },
+          "items": {
+            "$iid": {
+              ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'member')",
+              ".validate": "newData.hasChildren(['n', 'q', 'p', 'c', 'u', 'by', 'byName', 'dn', 'dnBy', 'dnAt', 'cl', 'note', 'updatedAt', 'createdAt', 'deleted']) && newData.child('n').isString() && newData.child('n').val().length >= 1 && newData.child('n').val().length <= 80 && newData.child('q').isString() && newData.child('q').val().length <= 40 && newData.child('p').isNumber() && newData.child('p').val() >= 0 && newData.child('c').isString() && newData.child('c').val().length >= 1 && newData.child('c').val().length <= 40 && newData.child('u').isBoolean() && newData.child('by').isString() && newData.child('byName').isString() && newData.child('dn').isBoolean() && newData.child('dnBy').isString() && newData.child('dnAt').isNumber() && newData.child('cl').isString() && newData.child('note').isString() && newData.child('note').val().length <= 240 && newData.child('updatedAt').isNumber() && newData.child('createdAt').isNumber() && newData.child('deleted').isBoolean()"
+            }
+          },
+          "requests": {
+            "$reqId": {
+              ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'member' || (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'child' && newData.child('by').val() === auth.uid && newData.child('status').val() === 'pending'))",
+              ".validate": "newData.hasChildren(['by', 'n', 'q', 'c', 'status', 'updatedAt']) && newData.child('by').isString() && newData.child('n').isString() && newData.child('n').val().length >= 1 && newData.child('n').val().length <= 80 && newData.child('q').isString() && newData.child('q').val().length <= 40 && newData.child('c').isString() && (newData.child('status').val() === 'pending' || newData.child('status').val() === 'approved' || newData.child('status').val() === 'rejected') && newData.child('updatedAt').isNumber()"
+            }
+          },
+          "history": {
+            "$histId": {
+              ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'member')",
+              ".validate": "newData.hasChildren(['itemName', 'c', 'p', 'q', 'boughtAt', 'by']) && newData.child('itemName').isString() && newData.child('itemName').val().length >= 1 && newData.child('itemName').val().length <= 80 && newData.child('c').isString() && newData.child('p').isNumber() && newData.child('p').val() >= 0 && newData.child('q').isString() && newData.child('boughtAt').isNumber() && newData.child('by').isString()"
+            }
+          },
+          "log": {
+            "$logId": {
+              ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid).exists() && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true",
+              ".validate": "newData.hasChildren(['at', 'uid', 'action', 'target']) && newData.child('at').isNumber() && newData.child('uid').isString() && newData.child('action').isString() && newData.child('action').val().length <= 60 && newData.child('target').isString() && newData.child('target').val().length <= 120"
+            }
+          },
+          "budget": {
+            ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin'",
+            ".validate": "newData.hasChild('monthly') && newData.child('monthly').isNumber() && newData.child('monthly').val() >= 0"
+          },
+          "ai": {
+            ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin'",
+            ".validate": "newData.hasChildren(['on', 't']) && newData.child('on').isString() && newData.child('t').isNumber()"
+          },
+          "aiUsage": {
+            "$uid": {
+              "$yyyymmdd": {
+                ".write": "auth != null && auth.uid === $uid && root.child('v2/rooms/' + $rid + '/members/' + auth.uid).exists() && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true",
+                ".validate": "newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.exists() && newData.val() === data.val() + 1))"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "مقاضي العائلة — Family OS",
+  "short_name": "مقاضي العائلة",
+  "description": "تطبيق عائلي لإدارة قائمة المقاضي والطلبات والميزانية والمساعد الذكي مع العمل دون إنترنت",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0f766e",
+  "background_color": "#f3f6f8",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "إضافة غرض",
+      "short_name": "إضافة غرض",
+      "description": "فتح نافذة إضافة غرض جديد بسرعة",
+      "url": "/?action=add",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "وضع السوبرماركت",
+      "short_name": "السوبرماركت",
+      "description": "فتح وضع التسوق السريع داخل المتجر",
+      "url": "/?mode=store",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
