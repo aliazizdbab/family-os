@@ -360,3 +360,22 @@ p {
 [hidden] {
   display: none !important;
 }
+
+.field-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field-lbl {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--mu);
+  display: block;
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}

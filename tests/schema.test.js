@@ -35,7 +35,12 @@ import {
   extractHistorySuggestions,
   parseSharedTextCandidates,
 } from '../public/js/ui/list.js';
-import { sortCategoriesByAisle } from '../public/js/ui/store-mode.js';
+import {
+  AI_STORE_SUGGESTIONS,
+  DEFAULT_STORE_CATALOG,
+  buildMergedStoreCatalog,
+  sortCategoriesByAisle,
+} from '../public/js/ui/store-mode.js';
 
 function buildSampleLegacyBackup() {
   return {
@@ -350,4 +355,15 @@ test('Phase 2 shopping helpers: budget summary, history suggestions, shared text
     sortedAisles.map((c) => c.id),
     ['meat', 'bakery', 'super']
   );
+
+  assert.ok(DEFAULT_STORE_CATALOG.length >= 65);
+  assert.ok(AI_STORE_SUGGESTIONS.length >= 4);
+  const merged = buildMergedStoreCatalog({
+    prefs: {
+      customCatalog: [{ n: 'قطعة غيار مخصصة', c: 'car', q: '1', p: 50, autoLearned: true }],
+    },
+    localSnapshot: { items: { i1: { n: 'غرض من السلة', c: 'super', q: '2', p: 15 } } },
+  });
+  assert.ok(merged.some((e) => e.n === 'قطعة غيار مخصصة' && e.autoLearned === true));
+  assert.ok(merged.some((e) => e.n === 'غرض من السلة' && e.autoLearned === true));
 });

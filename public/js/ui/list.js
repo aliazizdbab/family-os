@@ -192,24 +192,30 @@ function renderItemRowHtml(item, cat, currentMemberName, isAdminOrOwner) {
         </div>
       </div>
       <div class="g2">
-        <input
-          class="input"
-          data-inline-q="${id}"
-          value="${esc(item.q || '')}"
-          placeholder="الكمية"
-          aria-label="كمية ${esc(item.n)}"
-        />
-        <input
-          class="input"
-          type="number"
-          inputmode="decimal"
-          min="0"
-          step="any"
-          data-inline-p="${id}"
-          value="${Number(item.p) || ''}"
-          placeholder="السعر د.ل"
-          aria-label="سعر ${esc(item.n)}"
-        />
+        <label class="field-box">
+          <span class="field-lbl">📦 الكمية / العدد</span>
+          <input
+            class="input"
+            data-inline-q="${id}"
+            value="${esc(item.q || '')}"
+            placeholder="مثلاً: 2 أو 1 كجم"
+            aria-label="كمية ${esc(item.n)}"
+          />
+        </label>
+        <label class="field-box">
+          <span class="field-lbl">💰 السعر التقديري (د.ل)</span>
+          <input
+            class="input"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="any"
+            data-inline-p="${id}"
+            value="${Number(item.p) || ''}"
+            placeholder="مثلاً: 8"
+            aria-label="سعر ${esc(item.n)}"
+          />
+        </label>
       </div>
       <div class="chips">
         <span class="chip">📝 ${esc(item.byName || item.by || 'العائلة')}</span>
@@ -299,12 +305,18 @@ export function renderShoppingListView(appState) {
     : `
       <section class="sec stack">
         <div class="row">
-          <h3>➕ إضافة غرض للقائمة</h3>
-          <span class="mu">يقترح السعر والقسم تلقائياً من السجل</span>
+          <h3>➕ إضافة غرض للسلة</h3>
+          <span class="mu">يُحفظ أي غرض جديد تلقائياً في المتجر</span>
         </div>
         <div class="g2">
-          <input id="add-item-n" class="input" list="history-suggestions" placeholder="اسم الغرض (مثلاً: حليب)" autocomplete="off" />
-          <input id="add-item-q" class="input" placeholder="الكمية (مثلاً: 2 علبة)" />
+          <label class="field-box">
+            <span class="field-lbl">🛒 اسم الغرض أو المهمة</span>
+            <input id="add-item-n" class="input" list="history-suggestions" placeholder="مثلاً: حليب أو فلتر زيت" autocomplete="off" />
+          </label>
+          <label class="field-box">
+            <span class="field-lbl">📦 الكمية / العدد</span>
+            <input id="add-item-q" class="input" placeholder="مثلاً: 2 علبة" />
+          </label>
         </div>
         <datalist id="history-suggestions">
           ${suggestions
@@ -316,10 +328,16 @@ export function renderShoppingListView(appState) {
             .join('')}
         </datalist>
         <div class="g2">
-          <select id="add-item-c" class="select">
-            ${categories.map((c) => `<option value="${esc(c.id)}">${esc(c.i)} ${esc(c.n)}</option>`).join('')}
-          </select>
-          <input id="add-item-p" class="input" type="number" min="0" step="any" placeholder="السعر التقديري د.ل" />
+          <label class="field-box">
+            <span class="field-lbl">🗂️ القسم</span>
+            <select id="add-item-c" class="select">
+              ${categories.map((c) => `<option value="${esc(c.id)}">${esc(c.i)} ${esc(c.n)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="field-box">
+            <span class="field-lbl">💰 السعر التقديري (د.ل)</span>
+            <input id="add-item-p" class="input" type="number" min="0" step="any" placeholder="مثلاً: 8" />
+          </label>
         </div>
         <div class="g2">
           <input id="add-item-note" class="input" placeholder="ملاحظة (اختياري)" />

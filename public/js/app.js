@@ -51,7 +51,11 @@ import {
   renderRoomAndAuthCard,
   renderThemeSettingsCard,
 } from './ui/settings.js';
-import { renderStoreModeView, sortCategoriesByAisle } from './ui/store-mode.js';
+import {
+  buildMergedStoreCatalog,
+  renderStoreModeView,
+  sortCategoriesByAisle,
+} from './ui/store-mode.js';
 
 export { esc };
 
@@ -157,6 +161,22 @@ function applySearchFilterInDom(queryStr) {
   });
 }
 
+function applyStoreSearchFilterInDom(queryStr) {
+  const q = String(queryStr || '')
+    .trim()
+    .toLowerCase();
+  document.querySelectorAll('[data-catalog-row]').forEach((row) => {
+    const itemName = (row.getAttribute('data-catalog-name') || '').toLowerCase();
+    row.classList.toggle('hidden', Boolean(q && !itemName.includes(q)));
+  });
+  document.querySelectorAll('[data-catalog-sec]').forEach((sec) => {
+    const allRows = sec.querySelectorAll('[data-catalog-row]');
+    if (allRows.length === 0) return;
+    const anyVisible = Array.from(allRows).some((r) => !r.classList.contains('hidden'));
+    sec.classList.toggle('hidden', Boolean(q && !anyVisible));
+  });
+}
+
 function handleLaunchIntents() {
   const params = new URLSearchParams(window.location.search);
   const sharedText = params.get('text') || params.get('title') || params.get('url');
@@ -219,7 +239,7 @@ function renderHomeTab() {
   return `
     <section class="sec stack">
       <div class="row">
-        <h2>🛒 قائمة مقاضي العائلة (Phase 2)</h2>
+        <h2>🛒 السلة — رفيق الطلبات وإنجاز المهام</h2>
         <span class="badge-ok">الإصدار v${SCHEMA_VERSION}</span>
       </div>
       <div class="chips">
@@ -233,18 +253,23 @@ function renderHomeTab() {
 
     ${renderShoppingListView(state)}
 
-    ${renderRoomAndAuthCard(state)}
-
-    <section class="card">
-      <div class="ch">
-        <span>✅ جاهزية التشغيل المحلي والسحابي</span>
-        <span class="mu">IndexedDB + Outbox + SW</span>
-      </div>
-      <div class="list-item"><span>ملف التثبيت والاختصارات (Manifest)</span><span class="badge-ok">مفعّل</span></div>
-      <div class="list-item"><span>التخزين المؤقت للعمل دون إنترنت (SW)</span><span class="badge-ok" id="sw-status">جارٍ الفحص…</span></div>
-      <div class="list-item"><span>محرك قواعد البيانات المحلي (IndexedDB)</span><span class="badge-ok">متصل</span></div>
-      <div class="list-item"><span>قواعد الأمان والمصادقة المجهولة (v2 Rules)</span><span class="badge-ok">مفعّلة</span></div>
-    </section>
+    <details class="sec stack">
+      <summary class="row">
+        <strong>⚙️ إعدادات الغرفة والمزامنة وFirebase</strong>
+        <span class="badge-ok">اضغط للفتح</span>
+      </summary>
+      ${renderRoomAndAuthCard(state)}
+      <section class="card">
+        <div class="ch">
+          <span>✅ جاهزية التشغيل المحلي والسحابي</span>
+          <span class="mu">IndexedDB + Outbox + SW</span>
+        </div>
+        <div class="list-item"><span>ملف التثبيت والاختصارات (Manifest)</span><span class="badge-ok">مفعّل</span></div>
+        <div class="list-item"><span>التخزين المؤقت للعمل دون إنترنت (SW)</span><span class="badge-ok" id="sw-status">جارٍ الفحص…</span></div>
+        <div class="list-item"><span>محرك قواعد البيانات المحلي (IndexedDB)</span><span class="badge-ok">متصل</span></div>
+        <div class="list-item"><span>قواعد الأمان والمصادقة المجهولة (v2 Rules)</span><span class="badge-ok">مفعّلة</span></div>
+      </section>
+    </details>
 
     ${renderFirebaseDiagnosticsCard(state.firebaseStatus, state.prefs)}
   `;
@@ -348,7 +373,34 @@ function render() {
   if (state.tab === 'home' && state.searchQuery) {
     applySearchFilterInDom(state.searchQuery);
   }
+  if (state.tab === 'store' && state.storeSearchQuery) {
+    applyStoreSearchFilterInDom(state.storeSearchQuery);
+  }
   bindViewEvents();
+}
+
+async function ensureCatalogEntry({ n, q = '', p = 0, c = 'super', autoLearned = true }) {
+  const cleanName = String(n || '').trim();
+  if (!cleanName) return false;
+  const catId = c || 'super';
+  const catalog = buildMergedStoreCatalog(state);
+  const exists = catalog.some(
+    (entry) =>
+      String(entry.c).trim() === catId &&
+      String(entry.n).trim().toLowerCase() === cleanName.toLowerCase()
+  );
+  if (exists) return false;
+  const nextList = Array.isArray(state.prefs.customCatalog) ? [...state.prefs.customCatalog] : [];
+  nextList.push({
+    n: cleanName,
+    c: catId,
+    q: q || '1',
+    p: Number(p) || 0,
+    autoLearned: Boolean(autoLearned),
+  });
+  state.prefs.customCatalog = nextList;
+  await localStore.setPref('theme', state.prefs);
+  return true;
 }
 
 async function addNewShoppingItem({ n, q = '', p = 0, c = 'super', u = false, note = '' }) {
@@ -371,6 +423,7 @@ async function addNewShoppingItem({ n, q = '', p = 0, c = 'super', u = false, no
     updatedAt: now,
   });
   await persistEntity('items', id, item);
+  await ensureCatalogEntry({ n: cleanName, q, p, c: c || 'super', autoLearned: true });
   return item;
 }
 
@@ -798,7 +851,86 @@ function bindViewEvents() {
     showToast('📲 تم تجهيز تقرير واتساب للمشاركة');
   });
 
-  // --- Phase 2: Store Mode Events ---
+  // --- Phase 2: Store Catalog & Quick In-Store Events ---
+  document.querySelectorAll('[data-store-cat-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.storeCatFilter = btn.getAttribute('data-store-cat-filter') || 'all';
+      render();
+    });
+  });
+
+  const storeSearchInp = document.getElementById('store-search-inp');
+  if (storeSearchInp) {
+    storeSearchInp.addEventListener('input', () => {
+      state.storeSearchQuery = storeSearchInp.value;
+      applyStoreSearchFilterInDom(state.storeSearchQuery);
+    });
+  }
+
+  document.querySelectorAll('[data-catalog-add]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const n = btn.getAttribute('data-catalog-add') || '';
+      const c = btn.getAttribute('data-catalog-cat') || 'super';
+      const q = btn.getAttribute('data-catalog-q') || '';
+      const p = Number(btn.getAttribute('data-catalog-p')) || 0;
+      await addNewShoppingItem({ n, q, p, c });
+      await refreshSnapshot();
+      showToast(`🛒 أُضيف «${n}» إلى السلة`);
+      render();
+    });
+  });
+
+  document.getElementById('add-catalog-item-btn')?.addEventListener('click', async () => {
+    const cats = getSortedActiveCategories(state.localSnapshot?.cats);
+    const defaultCat =
+      state.storeCatFilter && state.storeCatFilter !== 'all' ? state.storeCatFilter : 'super';
+    const created = await showEditItemDialog({ n: '', q: '1', p: 0, c: defaultCat }, cats);
+    if (!created) return;
+    await ensureCatalogEntry({
+      n: created.n,
+      q: created.q,
+      p: created.p,
+      c: created.c,
+      autoLearned: false,
+    });
+    const alsoAddToCart = await showConfirmDialog(
+      `تم حفظ «${created.n}» في المتجر الدائم. هل تريد إضافته إلى «🛒 السلة» الآن أيضاً؟`,
+      { confirmText: '🛒 أضف للسلة', cancelText: 'حفظ في المتجر فقط' }
+    );
+    if (alsoAddToCart) {
+      await addNewShoppingItem({
+        n: created.n,
+        q: created.q,
+        p: created.p,
+        c: created.c,
+        u: created.u,
+        note: created.note,
+      });
+      await refreshSnapshot();
+    }
+    showToast(`✅ تم حفظ «${created.n}» في كتالوج المتجر`);
+    render();
+  });
+
+  document.getElementById('ai-suggest-store-btn')?.addEventListener('click', () => {
+    state.showAiStoreSuggestions = !state.showAiStoreSuggestions;
+    render();
+  });
+
+  document.querySelectorAll('[data-ai-catalog-add]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const n = btn.getAttribute('data-ai-catalog-add') || '';
+      const c = btn.getAttribute('data-ai-cat') || 'super';
+      const q = btn.getAttribute('data-ai-q') || '1';
+      const p = Number(btn.getAttribute('data-ai-p')) || 0;
+      await ensureCatalogEntry({ n, q, p, c, autoLearned: false });
+      await addNewShoppingItem({ n, q, p, c });
+      await refreshSnapshot();
+      showToast(`🤖 أُضيف «${n}» للمتجر والسلة بنجاح`);
+      render();
+    });
+  });
+
   document.querySelectorAll('[data-store-check]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-store-check');
@@ -1363,6 +1495,7 @@ async function init() {
         collapsedCats: Array.isArray(savedTheme.collapsedCats) ? savedTheme.collapsedCats : [],
         aisleOrder: Array.isArray(savedTheme.aisleOrder) ? savedTheme.aisleOrder : [],
         weeklyTemplate: Array.isArray(savedTheme.weeklyTemplate) ? savedTheme.weeklyTemplate : [],
+        customCatalog: Array.isArray(savedTheme.customCatalog) ? savedTheme.customCatalog : [],
       };
     }
     const pinRec = await localStore.getPref('pinLock', null);

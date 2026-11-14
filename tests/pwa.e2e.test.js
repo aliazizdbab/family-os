@@ -293,7 +293,7 @@ test(
     await page.goto(`${baseUrl}/`, { waitUntil: 'load' });
     await page.waitForSelector('#add-item-n');
 
-    // 1. Add item "قهوة عربية"
+    // 1. Add item "قهوة عربية" and verify visible labels
     await page.fill('#add-item-n', 'قهوة عربية');
     await page.fill('#add-item-q', '500 جم');
     await page.fill('#add-item-p', '35');
@@ -302,6 +302,8 @@ test(
     await page.waitForSelector('[data-item-row]');
     const listText = await page.textContent('#view-root');
     assert.ok(listText.includes('قهوة عربية'));
+    assert.ok(listText.includes('📦 الكمية / العدد'));
+    assert.ok(listText.includes('💰 السعر التقديري (د.ل)'));
 
     // 2. Inline price update preserves input focus and updates header totals
     const priceInput = page.locator('[data-inline-p]').first();
@@ -312,17 +314,61 @@ test(
     const headerTotals = await page.textContent('#header-totals');
     assert.ok(headerTotals.includes('المقدر: 45 د.ل'));
 
-    // 3. Store Mode: defer item ("لا يوجد في المتجر") and undefer
+    // 2b. Add a brand-new item not in the default catalog to test auto-learning into Store
+    await page.fill('#add-item-n', 'شمع إشعال سيارة أصلي');
+    await page.fill('#add-item-q', '4 حبات');
+    await page.fill('#add-item-p', '65');
+    await page.selectOption('#add-item-c', 'car');
+    await page.click('#add-item-btn');
+    await page.waitForFunction(() => document.body.textContent.includes('شمع إشعال سيارة أصلي'), {
+      timeout: 5000,
+    });
+
+    // 3. Store Mode: catalog browsing, auto-learned badge, add from catalog, AI suggestions, and quick defer/undefer
     await page.click('button[data-tab="store"]');
+    await page.waitForSelector('#store-catalog-header');
+    const storeCatalogText = await page.textContent('#view-root');
+    assert.ok(storeCatalogText.includes('تغيير زيت محرك السيارة'));
+    assert.ok(storeCatalogText.includes('ملمع ومنظف الأثاث والأخشاب'));
+    assert.ok(storeCatalogText.includes('شمع إشعال سيارة أصلي'));
+    assert.ok(storeCatalogText.includes('مضاف تلقائياً'));
+
+    // Check 360px layout + 44px touch targets in Store tab too
+    const storeLayout = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('button')].filter(
+        (b) => b.offsetParent !== null
+      );
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        minTouchHeight: Math.min(...buttons.map((b) => b.getBoundingClientRect().height)),
+      };
+    });
+    assert.ok(
+      storeLayout.scrollWidth <= storeLayout.innerWidth,
+      `Store tab overflow: ${storeLayout.scrollWidth} > ${storeLayout.innerWidth}`
+    );
+    assert.ok(
+      storeLayout.minTouchHeight >= 44,
+      `Store tab touch target too small: ${storeLayout.minTouchHeight}`
+    );
+
+    // Click AI suggestions toggle and verify AI suggestion appears
+    await page.click('#ai-suggest-store-btn');
+    await page.waitForSelector('#ai-store-suggestions-card');
+
+    // Add an item from Store Catalog to Cart
+    await page.click('[data-catalog-add="ملمع ومنظف الأثاث والأخشاب"]');
     await page.waitForSelector('[data-store-defer]');
+
     await page.click('[data-store-defer]');
     await page.waitForSelector('[data-store-undefer]');
     const storeTextAfterDefer = await page.textContent('#view-root');
-    assert.ok(storeTextAfterDefer.includes('غير متوفر في المتجر حالياً (1)'));
+    assert.ok(storeTextAfterDefer.includes('غير متوفر في المتجر حالياً'));
     await page.click('[data-store-undefer]');
     await page.waitForSelector('[data-store-check]');
 
-    // 4. Back to Home tab: mark item done -> moves to collapsed completed section + shows Undo snackbar
+    // 4. Back to Cart (home) tab: mark item done -> moves to collapsed completed section + shows Undo snackbar
     await page.click('button[data-tab="home"]');
     await page.waitForSelector('[data-item-toggle]');
     await page.click('[data-item-toggle]');
@@ -335,6 +381,10 @@ test(
     // Click Undo -> restores item to remaining list
     await page.click('#undo-snackbar-btn');
     await page.waitForSelector('[data-item-claim]');
+
+    // Verify catalog-added item is in the Cart
+    const finalCartText = await page.textContent('#view-root');
+    assert.ok(finalCartText.includes('ملمع ومنظف الأثاث والأخشاب'));
 
     assert.deepEqual(errors, []);
   }

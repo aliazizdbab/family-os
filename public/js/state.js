@@ -20,6 +20,9 @@ export const state = {
   listFilter: 'todo',
   showDone: false,
   searchQuery: '',
+  storeCatFilter: 'all',
+  storeSearchQuery: '',
+  showAiStoreSuggestions: false,
   prefs: {
     accent: DEFAULT_ACCENT,
     dark: false,
@@ -33,6 +36,7 @@ export const state = {
     collapsedCats: [],
     aisleOrder: [],
     weeklyTemplate: [],
+    customCatalog: [],
   },
   localSnapshot: null,
   lastPlan: null,
