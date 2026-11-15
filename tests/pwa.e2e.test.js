@@ -484,6 +484,12 @@ test(
     await page.waitForSelector('#ai-settings-sec');
     assert.equal(await page.isVisible('#ai-scan-models-btn'), true);
 
+    await page.click('button[data-tab="import"]');
+    await page.waitForSelector('#export-v2-backup-btn');
+    await page.click('#export-v2-backup-btn');
+    const exportedJson = await page.inputValue('#legacy-json');
+    assert.ok(exportedJson.includes('"family-test-2"'));
+
     assert.deepEqual(errors, []);
   }
 );

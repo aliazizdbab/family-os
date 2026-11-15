@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'family-os-v0.5.0';
+const CACHE_VERSION = 'family-os-v1.0.0';
 
 const LOCAL_SHELL_ASSETS = [
   '/',

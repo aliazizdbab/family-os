@@ -432,9 +432,10 @@ function renderImportTab() {
 
   return `
     <section class="sec stack">
-      <h2>📥 استيراد بيانات التطبيق القديم (تجريبي)</h2>
+      <h2>📥 استيراد وتصدير النسخ الاحتياطية</h2>
       <p class="mu">يمكنك جلب بيانات العائلة مباشرة من قاعدة بيانات Firebase القديمة بضغطة واحدة، أو اختيار ملف النسخة الاحتياطية (<code>family-backup.json</code>). تُجرى معاينة للأعداد أولاً مع تجاهل رموز PIN ومفاتيح الذكاء الاصطناعي.</p>
       <button type="button" id="fetch-legacy-rtdb-btn" class="btn full">☁️ جلب بيانات العائلة مباشرة من Firebase القديم</button>
+      <button type="button" id="export-v2-backup-btn" class="btn g full">📤 تصدير نسخة احتياطية كاملة للعائلة الحالية (JSON)</button>
       <input type="file" id="legacy-file" class="input" accept="application/json,.json">
       <textarea id="legacy-json" class="textarea" rows="4" dir="ltr" placeholder="أو الصق محتوى JSON هنا...">${esc(state.rawImportText)}</textarea>
       <div class="g2">
@@ -2259,6 +2260,40 @@ function bindViewEvents() {
     } catch {
       showToast('⚠️ تعذّر الاتصال بقاعدة البيانات؛ تحقق من الإنترنت');
     }
+  });
+
+  document.getElementById('export-v2-backup-btn')?.addEventListener('click', () => {
+    const snap = state.localSnapshot || {};
+    const payload = {
+      exportedAt: Date.now(),
+      roomId: state.roomId,
+      meta: snap.meta || {},
+      budget: snap.budget || {},
+      cats: snap.cats || {},
+      members: snap.members || {},
+      items: snap.items || {},
+      requests: snap.requests || {},
+      tasks: snap.tasks || {},
+      history: snap.history || {},
+    };
+    const jsonStr = JSON.stringify(payload, null, 2);
+    state.rawImportText = jsonStr;
+    const ta = document.getElementById('legacy-json');
+    if (ta) ta.value = jsonStr;
+    try {
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `family-os-backup-${state.roomId}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback: JSON is also placed in #legacy-json textarea
+    }
+    showToast('📤 تم تصدير النسخة الاحتياطية للعائلة الحالية');
   });
 
   document.getElementById('dry-run-btn')?.addEventListener('click', () => {
