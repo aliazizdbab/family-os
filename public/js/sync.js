@@ -10,11 +10,12 @@ export const SYNC_COLLECTIONS = Object.freeze([
   'cats',
   'items',
   'requests',
+  'tasks',
   'history',
   'log',
 ]);
 
-export const LWW_COLLECTIONS = new Set(['cats', 'items', 'requests']);
+export const LWW_COLLECTIONS = new Set(['cats', 'items', 'requests', 'tasks']);
 
 export function getSyncBadgeLabel(
   syncState = state.syncStatus,

@@ -442,6 +442,48 @@ test(
     const isolatedText = await page.textContent('#view-root');
     assert.equal(isolatedText.includes('قهوة عربية'), false);
 
+    // 7. Phase 3 AI Assistant v2: 360px + 44px touch targets, add items, delete confirmation, and AI settings card
+    await page.click('button[data-tab="ai"]');
+    await page.waitForSelector('#ai-chat-inp');
+    const aiLayout = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll('button')].filter(
+        (b) => b.offsetParent !== null
+      );
+      return {
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        minTouchHeight: Math.min(...buttons.map((b) => b.getBoundingClientRect().height)),
+      };
+    });
+    assert.ok(
+      aiLayout.scrollWidth <= aiLayout.innerWidth,
+      `AI tab overflow: ${aiLayout.scrollWidth} > ${aiLayout.innerWidth}`
+    );
+    assert.ok(
+      aiLayout.minTouchHeight >= 44,
+      `AI tab touch target too small: ${aiLayout.minTouchHeight}`
+    );
+
+    await page.fill('#ai-chat-inp', 'أضف عصير برتقال');
+    await page.click('#ai-send-btn');
+    await page.waitForFunction(
+      () => document.getElementById('ai-chat-box')?.textContent.includes('أُضيف 1 غرض'),
+      { timeout: 5000 }
+    );
+
+    await page.fill('#ai-chat-inp', 'احذف عصير برتقال');
+    await page.click('#ai-send-btn');
+    await page.waitForSelector('[data-ai-confirm]');
+    await page.click('[data-ai-confirm]');
+    await page.waitForFunction(
+      () => document.getElementById('ai-chat-box')?.textContent.includes('حُذف 1 غرض'),
+      { timeout: 5000 }
+    );
+
+    await page.click('button[data-tab="prefs"]');
+    await page.waitForSelector('#ai-settings-sec');
+    assert.equal(await page.isVisible('#ai-scan-models-btn'), true);
+
     assert.deepEqual(errors, []);
   }
 );

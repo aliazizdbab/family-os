@@ -61,6 +61,26 @@ import {
   sortCategoriesByAisle,
 } from './ui/store-mode.js';
 import { renderTasksView } from './ui/tasks.js';
+import { renderChatView } from './ui/chat.js';
+import {
+  DAILY_AI_LIMIT,
+  callAiProvider,
+  getActiveAiProvider,
+  getDailyAiUsage,
+  getEditedAiProvider,
+  getOrInitAiConfig,
+  incrementDailyAiUsage,
+  isAiProviderReady,
+  setRuntimeAiConfig,
+} from './ai.js';
+import {
+  CONFIRM_REQUIRED_AI_ACTIONS,
+  buildAiSystemPrompt,
+  describePendingAiAction,
+  parseAiEnvelope,
+  runLocalSmartAssistant,
+} from './ai-actions.js';
+import { scanProviderModels } from './models-scan.js';
 
 export { esc };
 
@@ -451,6 +471,7 @@ function render() {
   if (state.tab === 'home') root.innerHTML = renderHomeTab();
   else if (state.tab === 'store') root.innerHTML = renderStoreModeView(state);
   else if (state.tab === 'tasks') root.innerHTML = renderTasksView(state);
+  else if (state.tab === 'ai') root.innerHTML = renderChatView(state);
   else if (state.tab === 'import') root.innerHTML = renderImportTab();
   else root.innerHTML = renderPrefsTab();
 
@@ -518,6 +539,507 @@ async function addNewShoppingItem({ n, q = '', p = 0, c = 'super', u = false, no
   await persistEntity('items', id, item);
   await ensureCatalogEntry({ n: cleanName, q, p, c: c || 'super', autoLearned: true });
   return item;
+}
+
+async function executeAiAction(action, confirmed = false) {
+  const name = action?.name;
+  const args = action?.args || {};
+  const currentRole = state.prefs.currentRole || 'admin';
+  const isManager = ['developer', 'admin', 'mother'].includes(currentRole);
+  const memberName = state.prefs.memberName || 'الأب';
+
+  if (CONFIRM_REQUIRED_AI_ACTIONS.includes(name) && !confirmed) {
+    return { pendingLabel: describePendingAiAction(action, state) };
+  }
+
+  if (
+    ['set_budget', 'clear_done', 'set_member', 'remove_member', 'delete_category'].includes(name) &&
+    !isManager
+  ) {
+    return { result: '⛔ هذا الأمر يتطلب صلاحية مسؤول' };
+  }
+
+  const now = Date.now();
+  const snap = state.localSnapshot || {};
+
+  if (name === 'add_items') {
+    const rawItems = Array.isArray(args.items) ? args.items.slice(0, 30) : [];
+    let added = 0;
+    for (const entry of rawItems) {
+      const n = String(entry?.n || '').trim();
+      if (!n) continue;
+      if (currentRole === 'child') {
+        const rid = `req_${now}_${Math.random().toString(36).slice(2, 6)}`;
+        await persistEntity(
+          'requests',
+          rid,
+          createRequest({
+            id: rid,
+            by: state.firebaseStatus.uid || memberName,
+            n,
+            q: String(entry?.q || ''),
+            c: String(entry?.c || 'super'),
+            status: 'pending',
+            updatedAt: now,
+          })
+        );
+      } else {
+        await addNewShoppingItem({
+          n,
+          q: String(entry?.q || ''),
+          p: Number(entry?.p) || 0,
+          c: String(entry?.c || 'super'),
+          u: Boolean(entry?.u),
+        });
+      }
+      added += 1;
+    }
+    return { result: `أُضيف ${added} غرض` };
+  }
+
+  if (name === 'add_request') {
+    const n = String(args.n || '').trim();
+    if (!n) return { result: '⚠️ اسم الطلب فارغ' };
+    const rid = `req_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    await persistEntity(
+      'requests',
+      rid,
+      createRequest({
+        id: rid,
+        by: state.firebaseStatus.uid || memberName,
+        n,
+        q: String(args.q || ''),
+        c: String(args.c || 'super'),
+        status: 'pending',
+        updatedAt: now,
+      })
+    );
+    return { result: `أُرسل طلب «${n}»` };
+  }
+
+  if (name === 'mark_done') {
+    const ids = Array.isArray(args.ids) ? args.ids : [];
+    const done = args.done !== false;
+    let count = 0;
+    for (const id of ids) {
+      const existing = snap.items?.[id];
+      if (!existing || existing.deleted) continue;
+      await persistEntity(
+        'items',
+        id,
+        createItem({
+          ...existing,
+          dn: done,
+          dnBy: done ? memberName : '',
+          dnAt: done ? now : 0,
+          updatedAt: now,
+        })
+      );
+      count += 1;
+    }
+    return { result: `${done ? 'تم إنجاز' : 'أُعيد فتح'} ${count} غرض` };
+  }
+
+  if (name === 'claim') {
+    const ids = Array.isArray(args.ids) ? args.ids : [];
+    const claim = args.claim !== false;
+    let count = 0;
+    for (const id of ids) {
+      const existing = snap.items?.[id];
+      if (!existing || existing.deleted || existing.dn) continue;
+      await persistEntity(
+        'items',
+        id,
+        createItem({ ...existing, cl: claim ? memberName : '', updatedAt: now })
+      );
+      count += 1;
+    }
+    return { result: `${claim ? 'حُجز' : 'أُلغي حجز'} ${count} غرض` };
+  }
+
+  if (name === 'update_item') {
+    const existing = snap.items?.[args.id];
+    if (!existing) return { result: '⚠️ لم أجد الغرض' };
+    await persistEntity(
+      'items',
+      args.id,
+      createItem({
+        ...existing,
+        n: args.n ? String(args.n) : existing.n,
+        q: args.q !== undefined ? String(args.q) : existing.q,
+        p: args.p !== undefined ? Math.max(0, Number(args.p) || 0) : existing.p,
+        c: args.c ? String(args.c) : existing.c,
+        u: args.u !== undefined ? Boolean(args.u) : existing.u,
+        updatedAt: now,
+      })
+    );
+    return { result: `تم تحديث «${args.n || existing.n}»` };
+  }
+
+  if (name === 'delete_items') {
+    const ids = Array.isArray(args.ids) ? args.ids : [];
+    let count = 0;
+    for (const id of ids) {
+      const existing = snap.items?.[id];
+      if (!existing || existing.deleted) continue;
+      if (!isManager && existing.byName !== memberName) continue;
+      await persistEntity('items', id, createItem({ ...existing, deleted: true, updatedAt: now }));
+      await recordActivityLog('حذف 🤖', existing.n);
+      count += 1;
+    }
+    return { result: `حُذف ${count} غرض` };
+  }
+
+  if (name === 'clear_done') {
+    let count = 0;
+    for (const [id, existing] of Object.entries(snap.items || {})) {
+      if (existing && !existing.deleted && existing.dn) {
+        await persistEntity(
+          'items',
+          id,
+          createItem({ ...existing, deleted: true, updatedAt: now })
+        );
+        count += 1;
+      }
+    }
+    return { result: `مُسح ${count} غرض منجز` };
+  }
+
+  if (name === 'set_budget') {
+    const monthly = Math.max(0, Number(args.value) || 0);
+    const nextBudget = createBudget({ monthly, perCat: snap.budget?.perCat || {} });
+    state.localSnapshot.budget = nextBudget;
+    await persistRoomDoc({ budget: nextBudget });
+    return { result: `تم ضبط الميزانية على ${monthly} د.ل` };
+  }
+
+  if (name === 'add_task') {
+    const title = String(args.title || '').trim();
+    if (!title) return { result: '⚠️ عنوان المهمة فارغ' };
+    const tid = `tsk_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    await persistEntity(
+      'tasks',
+      tid,
+      createTask({
+        id: tid,
+        title,
+        assigneeId: String(args.assigneeId || 'all'),
+        assigneeName: String(args.assigneeName || 'الجميع'),
+        recurrence: String(args.recurrence || 'daily'),
+        points: Math.max(0, Number(args.points) || 15),
+        createdBy: memberName,
+        updatedAt: now,
+      })
+    );
+    await recordActivityLog('مهمة 🤖', title);
+    return { result: `أُضيفت مهمة «${title}»` };
+  }
+
+  if (name === 'complete_task') {
+    const existing = snap.tasks?.[args.id];
+    if (!existing) return { result: '⚠️ لم أجد المهمة' };
+    await persistEntity(
+      'tasks',
+      args.id,
+      createTask({ ...existing, done: true, doneBy: memberName, doneAt: now, updatedAt: now })
+    );
+    return { result: `أُنجزت مهمة «${existing.title}»` };
+  }
+
+  if (name === 'add_category') {
+    const catName = String(args.n || '').trim();
+    if (!catName) return { result: '⚠️ اسم القسم فارغ' };
+    const cid = `cat_${now}`;
+    const order = getSortedActiveCategories(snap.cats).length;
+    await persistEntity(
+      'cats',
+      cid,
+      createCategory({ id: cid, n: catName, i: String(args.i || '📁'), order, updatedAt: now })
+    );
+    return { result: `أُضيف قسم «${catName}»` };
+  }
+
+  if (name === 'rename_category') {
+    const existing = snap.cats?.[args.id];
+    if (!existing) return { result: '⚠️ لم أجد القسم' };
+    await persistEntity(
+      'cats',
+      args.id,
+      createCategory({ ...existing, n: String(args.n || existing.n), updatedAt: now })
+    );
+    return { result: `تمت إعادة تسمية القسم` };
+  }
+
+  if (name === 'delete_category') {
+    const existing = snap.cats?.[args.id];
+    if (!existing) return { result: '⚠️ لم أجد القسم' };
+    await persistEntity(
+      'cats',
+      args.id,
+      createCategory({ ...existing, deleted: true, updatedAt: now })
+    );
+    return { result: `حُذف قسم «${existing.n}»` };
+  }
+
+  if (name === 'navigate') {
+    if (['home', 'store', 'tasks', 'ai', 'import', 'prefs'].includes(args.tab)) {
+      state.tab = args.tab;
+    }
+    return { result: 'تم الانتقال' };
+  }
+
+  if (name === 'set_theme') {
+    if (/^#[0-9a-f]{6}$/i.test(args.color || '')) state.prefs.accent = args.color;
+    if (args.dark !== undefined) state.prefs.dark = Boolean(args.dark);
+    if (Number(args.fontSize) >= 14 && Number(args.fontSize) <= 20) {
+      state.prefs.fontSize = Number(args.fontSize);
+    }
+    await saveMemberPersonalTheme(state.session?.memberId);
+    return { result: 'تم تحديث المظهر' };
+  }
+
+  return { result: `أمر غير مدعوم: ${String(name || '')}` };
+}
+
+async function handleSendAiMessage(rawInput) {
+  const text = String(rawInput || '').trim();
+  if (!text || state.aiBusy) return;
+
+  const uid = state.session?.memberId || 'local';
+  const quota = await incrementDailyAiUsage(uid, localStore, DAILY_AI_LIMIT);
+  state.aiUsageCount = quota.used;
+  if (!quota.ok) {
+    state.chatMessages.push({
+      role: 'bot',
+      text: `⚠️ وصلت إلى الحد اليومي (${DAILY_AI_LIMIT} طلب في اليوم) لهذا الجهاز.`,
+      results: [],
+      pending: [],
+    });
+    render();
+    return;
+  }
+
+  state.chatMessages.push({ role: 'user', text });
+  state.aiBusy = true;
+  render();
+
+  try {
+    const activeProv = getActiveAiProvider();
+    let envelope;
+    if (isAiProviderReady(activeProv)) {
+      const history = state.chatMessages
+        .slice(-10)
+        .filter((m) => m.role === 'user' || m.raw)
+        .map((m) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.role === 'user' ? m.text : m.raw,
+        }));
+      const rawReply = await callAiProvider(activeProv, buildAiSystemPrompt(state), history);
+      envelope = parseAiEnvelope(rawReply);
+      envelope.raw = rawReply;
+    } else {
+      envelope = runLocalSmartAssistant(text, state, buildMergedStoreCatalog(state));
+    }
+
+    const results = [];
+    const pending = [];
+    for (const act of (envelope.actions || []).slice(0, 20)) {
+      const outcome = await executeAiAction(act, false);
+      if (outcome.pendingLabel) {
+        pending.push({
+          action: act,
+          label: outcome.pendingLabel,
+          resolved: false,
+          approved: false,
+        });
+      } else if (outcome.result) {
+        results.push(outcome.result);
+      }
+    }
+
+    await refreshSnapshot();
+    state.chatMessages.push({
+      role: 'bot',
+      text: envelope.reply || 'تم تنفيذ طلبك.',
+      raw: envelope.raw || '',
+      results,
+      pending,
+    });
+  } catch (err) {
+    state.chatMessages.push({
+      role: 'bot',
+      text: `❌ تعذّر الاتصال بالمزود السحابي: ${err?.message || 'خطأ غير معروف'}`,
+      results: [],
+      pending: [],
+    });
+  } finally {
+    state.aiBusy = false;
+    state.chatMessages = state.chatMessages.slice(-40);
+    render();
+  }
+}
+
+function bindAiEvents() {
+  document.getElementById('ai-goto-settings-btn')?.addEventListener('click', () => {
+    state.tab = 'prefs';
+    render();
+  });
+
+  document.querySelectorAll('[data-ai-prompt]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const prompt = btn.getAttribute('data-ai-prompt') || '';
+      void handleSendAiMessage(prompt);
+    });
+  });
+
+  document.getElementById('ai-send-btn')?.addEventListener('click', () => {
+    const inp = document.getElementById('ai-chat-inp');
+    const val = inp?.value || '';
+    if (inp) inp.value = '';
+    void handleSendAiMessage(val);
+  });
+
+  document.getElementById('ai-chat-inp')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = e.target.value || '';
+      e.target.value = '';
+      void handleSendAiMessage(val);
+    }
+  });
+
+  document.getElementById('ai-clear-chat-btn')?.addEventListener('click', () => {
+    state.chatMessages = [];
+    render();
+  });
+
+  document.getElementById('ai-voice-btn')?.addEventListener('click', () => {
+    const SpeechRec = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      showToast('⚠️ المتصفح لا يدعم الإملاء الصوتي المباشر؛ يمكنك استخدام لوحة المفاتيح');
+      return;
+    }
+    try {
+      const rec = new SpeechRec();
+      rec.lang = 'ar-SA';
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      showToast('🎙️ تكلّم الآن...');
+      rec.onresult = (evt) => {
+        const transcript = evt?.results?.[0]?.[0]?.transcript || '';
+        const inp = document.getElementById('ai-chat-inp');
+        if (inp) inp.value = transcript;
+        if (transcript.trim()) {
+          void handleSendAiMessage(transcript);
+        }
+      };
+      rec.onerror = () => {
+        showToast('⚠️ تعذّر التقاط الصوت، حاول مرة أخرى');
+      };
+      rec.start();
+    } catch {
+      showToast('⚠️ تعذّر تشغيل الميكروفون');
+    }
+  });
+
+  document.querySelectorAll('[data-ai-confirm]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const [mIdx, pIdx] = (btn.getAttribute('data-ai-confirm') || '').split(':').map(Number);
+      const entry = state.chatMessages?.[mIdx]?.pending?.[pIdx];
+      if (!entry || entry.resolved) return;
+      entry.resolved = true;
+      entry.approved = true;
+      const out = await executeAiAction(entry.action, true);
+      if (out.result) {
+        state.chatMessages[mIdx].results.push(out.result);
+      }
+      await refreshSnapshot();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-ai-cancel]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [mIdx, pIdx] = (btn.getAttribute('data-ai-cancel') || '').split(':').map(Number);
+      const entry = state.chatMessages?.[mIdx]?.pending?.[pIdx];
+      if (!entry || entry.resolved) return;
+      entry.resolved = true;
+      entry.approved = false;
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-ai-prov-select]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const cfg = getOrInitAiConfig();
+      cfg.ed = btn.getAttribute('data-ai-prov-select') || cfg.on;
+      setRuntimeAiConfig(cfg);
+      render();
+    });
+  });
+
+  const readAiForm = () => ({
+    name: document.getElementById('ai-prov-name')?.value?.trim() || 'مزود',
+    type: document.getElementById('ai-prov-type')?.value || 'gemini',
+    url: document.getElementById('ai-prov-url')?.value?.trim().replace(/\/+$/, '') || '',
+    model: document.getElementById('ai-prov-model')?.value?.trim() || '',
+    key: document.getElementById('ai-prov-key')?.value?.trim() || '',
+  });
+
+  document.getElementById('ai-save-prov-btn')?.addEventListener('click', () => {
+    const cfg = getOrInitAiConfig();
+    const prov = getEditedAiProvider(cfg);
+    if (!prov) return;
+    Object.assign(prov, readAiForm());
+    cfg.on = prov.id;
+    cfg.ed = prov.id;
+    setRuntimeAiConfig(cfg);
+    state.aiTestOutput = `✅ تم حفظ وتفعيل «${prov.name}» للجلسة الحالية.`;
+    showToast(`🤖 تم تفعيل ${prov.name}`);
+    render();
+  });
+
+  document.getElementById('ai-test-prov-btn')?.addEventListener('click', async () => {
+    const formProv = readAiForm();
+    state.aiTestOutput = '⏳ جارٍ اختبار الاتصال...';
+    render();
+    const startedAt = Date.now();
+    try {
+      const reply = await callAiProvider(
+        formProv,
+        'Reply with the single word OK.',
+        [{ role: 'user', content: 'ping' }],
+        { maxTokens: 20, timeoutMs: 12000 }
+      );
+      state.aiTestOutput = `✅ نجح الاتصال (${Date.now() - startedAt}ms): ${reply.trim().slice(0, 60)}`;
+    } catch (err) {
+      state.aiTestOutput = `❌ فشل الاختبار: ${err?.message || 'خطأ غير معروف'}`;
+    }
+    render();
+  });
+
+  document.getElementById('ai-scan-models-btn')?.addEventListener('click', async () => {
+    const cfg = getOrInitAiConfig();
+    const prov = getEditedAiProvider(cfg);
+    const formProv = { ...prov, ...readAiForm() };
+    state.aiTestOutput = '⏳ جارٍ فحص وجلب الموديلات المتاحة...';
+    render();
+    try {
+      const scanned = await scanProviderModels(formProv, { probeWorking: true });
+      if (prov) {
+        prov.models = scanned.models;
+        if (scanned.recommendedModel) prov.model = scanned.recommendedModel;
+        setRuntimeAiConfig(cfg);
+      }
+      state.aiTestOutput =
+        scanned.models.length > 0
+          ? `✅ عُثر على ${scanned.models.length} موديل (الموصى به: ${scanned.recommendedModel})`
+          : '⚠️ لم يتم العثور على موديلات مطابقة.';
+    } catch (err) {
+      state.aiTestOutput = `❌ تعذّر الفحص: ${err?.message || 'خطأ غير معروف'}`;
+    }
+    render();
+  });
 }
 
 function bindViewEvents() {
@@ -1642,8 +2164,17 @@ function bindViewEvents() {
       });
       if (res.ok) {
         state.roomId = res.roomId;
+        if (!activeSyncEngine) {
+          activeSyncEngine = new SyncEngine({
+            roomId: state.roomId,
+            store: localStore,
+            useEmulator: state.prefs.useEmulator,
+            rtdbUrl: state.prefs.rtdbUrl,
+          });
+          void activeSyncEngine.start().catch(() => {});
+        }
         await refreshSnapshot();
-        showToast('✅ تم تفعيل الغرفة وتوليد رابط الدعوة');
+        showToast('✅ تم تفعيل الغرفة والمزامنة الحية وتوليد رابط الدعوة');
         render();
       } else {
         showToast('⚠️ تعذّر التفعيل السحابي، حُفظت الغرفة محلياً');
@@ -1836,6 +2367,8 @@ function bindViewEvents() {
     showToast('🔓 تم إلغاء قفل الشاشة المحلي');
     render();
   });
+
+  bindAiEvents();
 }
 
 function runDryRun() {
@@ -2013,6 +2546,7 @@ async function init() {
     }
     const pinRec = await localStore.getPref('pinLock', null);
     pinLockEnabled = Boolean(pinRec?.enabled);
+    state.aiUsageCount = await getDailyAiUsage(state.session.memberId || 'local', localStore);
   } catch {
     // Keep default theme when storage is restricted
   }

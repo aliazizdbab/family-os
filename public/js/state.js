@@ -24,6 +24,10 @@ export const state = {
   storeCatFilter: 'all',
   storeSearchQuery: '',
   showAiStoreSuggestions: false,
+  chatMessages: [],
+  aiBusy: false,
+  aiUsageCount: 0,
+  aiTestOutput: '',
   loginSelectedMemberId: 'mem_father',
   session: {
     loggedIn: false,

@@ -24,8 +24,9 @@ import {
   CONFIRM_REQUIRED_AI_ACTIONS,
   SUPPORTED_AI_ACTIONS,
   parseAiEnvelope,
+  runLocalSmartAssistant,
 } from '../public/js/ai-actions.js';
-import { filterCandidateGeminiModels } from '../public/js/models-scan.js';
+import { filterCandidateGeminiModels, scanProviderModels } from '../public/js/models-scan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -136,6 +137,9 @@ test('firebase.json, .firebaserc, and database.rules.json are valid and preserve
     roomRules.aiUsage?.$uid?.$yyyymmdd?.['.validate'],
     /newData\.val\(\) === data\.val\(\) \+ 1/
   );
+  assert.ok(roomRules.tasks?.$taskId?.['.write'], 'tasks write rule must exist');
+  assert.match(roomRules.members?.$uid?.['.validate'], /'mother'/);
+  assert.match(roomRules.members?.$uid?.['.validate'], /'developer'/);
 });
 
 test('auth workflows: createRoom, joinRoomWithInvite, rotate/revoke invite, and relinkMemberUid', async () => {
@@ -266,6 +270,51 @@ test('AI action envelope parser and Gemini free-model filter work as specified',
     { name: 'models/gemini-2.0-flash-exp', supportedGenerationMethods: ['generateContent'] },
   ]);
   assert.deepEqual(models, ['gemini-2.5-flash']);
+});
+
+test('Phase 3 local smart assistant and model scanner work deterministically', async () => {
+  const sampleState = {
+    prefs: { currentRole: 'admin', memberName: 'الأب' },
+    localSnapshot: {
+      budget: { monthly: 300 },
+      items: {
+        i1: { id: 'i1', n: 'عصير برتقال', q: '2', p: 10, c: 'super', dn: false, deleted: false },
+      },
+      tasks: {},
+    },
+  };
+
+  const addRes = runLocalSmartAssistant('أضف حليب وخبز', sampleState, []);
+  assert.equal(addRes.actions[0].name, 'add_items');
+  assert.equal(addRes.actions[0].args.items.length, 2);
+
+  const delRes = runLocalSmartAssistant('احذف عصير برتقال', sampleState, []);
+  assert.equal(delRes.actions[0].name, 'delete_items');
+  assert.deepEqual(delRes.actions[0].args.ids, ['i1']);
+
+  const mealRes = runLocalSmartAssistant('ماذا نطبخ اليوم؟', sampleState, []);
+  assert.ok(mealRes.reply.includes('اقتراحات وجبات اليوم'));
+
+  const budgetRes = runLocalSmartAssistant('حلل الميزانية', sampleState, []);
+  assert.ok(budgetRes.reply.includes('300 د.ل'));
+
+  const scanned = await scanProviderModels(
+    { type: 'gemini', url: 'https://generativelanguage.googleapis.com/v1beta', key: 'k' },
+    {
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          models: [
+            { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
+            { name: 'models/gemini-2.5-pro-tts', supportedGenerationMethods: ['generateContent'] },
+          ],
+        }),
+      }),
+    }
+  );
+  assert.deepEqual(scanned.models, ['gemini-2.5-flash']);
+  assert.equal(scanned.recommendedModel, 'gemini-2.5-flash');
 });
 
 test('RTDB emulator security rules enforcement (@firebase/rules-unit-testing when emulator port 9000 is running)', async (t) => {
