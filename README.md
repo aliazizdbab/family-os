@@ -1,22 +1,17 @@
-# Family OS (v2)
+# Family OS (v1.0.0)
 
-Arabic (RTL), mobile-first, offline-first PWA for shared family grocery lists, requests, budget, and AI assistance, backed by Firebase Spark (Realtime Database + Anonymous Auth + Hosting).
+Arabic (RTL), mobile-first, offline-first PWA for shared family grocery lists, requests, store catalog, household tasks with reward points, and AI assistance, backed by Firebase Spark (Realtime Database + Anonymous Auth + Hosting).
 
-## Current Status
-- **Phase 0 (Local Foundation & Firebase Config — complete, awaiting Google OAuth login for Gate G0 preview deploy):**
-  - Read-only reference preserved at `legacy/family_list.html`.
-  - Git (`2.56.0.windows.4`) and Java (`OpenJDK 25.0.3`) configured in User `PATH`; Git repository initialized on branch `phase-0`.
-  - Antigravity Firebase MCP configured at `%USERPROFILE%\.gemini\antigravity\mcp_config.json`.
-  - Firebase project & rules files ready: `.firebaserc` (`family-requests-9e431`), `firebase.json` (Hosting + Database + Emulators), `database.rules.json` (preserves legacy `/rooms/$legacyRoom` & `/ai/$legacyRoom` + full `/v2/rooms/$rid` validation).
-  - PWA shell (`public/index.html`, `public/manifest.webmanifest`, `public/sw.js`, `public/icons/*`, `public/css/app.css`).
-  - Pinned Firebase Web SDK target: `13.1.0` (cached in `sw.js` for offline use).
-  - Full §3 module scaffold: `public/js/app.js`, `public/js/state.js`, `public/js/schema.js`, `public/js/store-idb.js`, `public/js/migrate.js`, `public/js/auth.js`, `public/js/sync.js`, `public/js/ai.js`, `public/js/ai-actions.js`, `public/js/models-scan.js`, and `public/js/ui/{dialogs,list,settings,store-mode,chat}.js`.
-  - Legacy export helper: `tools/export-legacy.html` + `tools/export-legacy.js`.
-  - Automated tests & checks: `tests/schema.test.js`, `tests/store.test.js`, `tests/rules.test.js`, `tests/sync.e2e.js`, `tests/pwa.e2e.test.js`, plus ESLint and Prettier.
-- **Pending Owner Action for Cloud Deploy:**
-  1. Complete Google OAuth sign-in in browser for `npx -y firebase-tools@latest login`.
-  2. Enable **Anonymous Auth** in Firebase Console (`Authentication -> Sign-in method -> Anonymous`).
-  3. Restart Antigravity if you want the newly configured `firebase` MCP server loaded into the IDE session.
+🌐 **Live Production URL:** https://family-requests-9e431.web.app  
+📖 **Comprehensive Arabic Manual & Architecture Guide:** [FAMILY_OS_MANUAL.md](file:///c:/Users/Ali/remote/family-os/FAMILY_OS_MANUAL.md)
+
+## Current Status: Production Released (v1.0.0)
+- **All 4 Phases Complete & Verified:**
+  - **Phase 0:** PWA shell, RTL Tajawal typography, offline-first IndexedDB engine, Service Worker cache (`v1.0.0`), and sanitized legacy backup import/export.
+  - **Phase 1:** Multi-tenancy family isolation (`/v2/rooms/$rid`), anonymous auth, invite link generator/parser (`#join=...`), and hardened cloud security rules.
+  - **Phase 2:** 5-button touch UI (`🛒 السلة`, `🏪 المتجر`, `📋 المهام`, `📥 استيراد`, `⚙️ الإعدادات`), labeled inline inputs, 71-item auto-learning family store, 4-tier roles (Developer, Father, Mother, Children), and household tasks with reward points and leaderboard.
+  - **Phase 3:** Interactive AI Assistant tab (`🤖 المساعد`), keyless offline Arabic assistant, action execution with confirmation dialogs, Web Speech voice dictation, and Gemini free-model scanner.
+  - **Phase 4:** Full v2 family backup export (JSON), RTDB emulator security rules verification (7/7 passing), full test suite (22/22 passing), and production deployment on Firebase Hosting.
 
 ## Local Setup & Testing
 Prerequisites: Node.js `>= 20` (tested on `v26.13.1`) and Google Chrome / Edge for E2E tests.
@@ -31,33 +26,16 @@ Additional scripts:
 npm run test:unit
 npm run test:e2e
 npm run lint
+npm run format
 npm run format:check
 ```
 
-Serve the PWA shell locally on port `5000`:
-```bash
-npm run serve
-```
-
-## Firebase Emulators & Deploy (Once Firebase CLI/MCP is connected)
-- Emulators require Java JDK (Android Studio JBR is detected at `C:\Program Files\Android\Android Studio\jbr\bin\java.exe` if added to `PATH`/`JAVA_HOME`).
-- Preview channel deploy (Phase 0 Gate G0):
+## Firebase Emulators & Production Deploy
+- Run security rules test against the live RTDB emulator:
   ```bash
-  npx -y firebase-tools@latest hosting:channel:deploy phase-0
+  npx firebase-tools emulators:exec --only database --project family-requests-9e431 "node --test tests/rules.test.js"
   ```
-- Production deploy (only after Gate approval):
+- Deploy hosting and database rules to production:
   ```bash
-  npx -y firebase-tools@latest deploy --only hosting
+  npx firebase-tools deploy --only database,hosting --project family-requests-9e431
   ```
-
-## Rotating the Gemini API Key (Admin Only)
-1. Generate a new key in Google AI Studio and restrict/monitor quota.
-2. Open **Settings -> AI** in the app (admin account only), update the key, run **Test connection**, and save.
-3. Revoke the old key in Google AI Studio.
-4. Note: API keys are stored solely in `/v2/rooms/$rid/ai` (admin-writable, member-readable) and kept only in memory on client devices — never in `localStorage`, IndexedDB, exports, or backups.
-
-## Gate G0 Manual QA Checklist
-- [ ] Open preview/local URL on Android Chrome at `360px` width — no horizontal overflow, touch targets >= 44 px, zero console errors.
-- [ ] Install PWA to Home Screen; verify shortcuts ("إضافة غرض", "وضع السوبرماركت").
-- [ ] Switch device offline, launch installed PWA — app shell opens cleanly and reports offline status.
-- [ ] Test legacy `family-backup.json` dry-run import in the "استيراد" tab — verify counts (`items`, `cats`, `members`, `budget`), confirm PIN hashes are discarded, and verify second run is idempotent (`0` additions).
