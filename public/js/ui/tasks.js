@@ -12,6 +12,37 @@ export const DEFAULT_HOUSEHOLD_TASKS = Object.freeze([
   { title: 'تنظيف فلاتر المكيف', icon: '🔌', recurrence: 'monthly', points: 30 },
 ]);
 
+export const DEFAULT_FAMILY_REWARDS = Object.freeze([
+  {
+    id: 'rw_gaming',
+    title: 'ساعة ألعاب إضافية',
+    icon: '🎮',
+    cost: 50,
+    desc: 'وقت مرح إضافي على البلايستيشن أو الآيباد في عطلة الأسبوع',
+  },
+  {
+    id: 'rw_icecream',
+    title: 'نزهة مثلجات عائلية',
+    icon: '🍦',
+    cost: 75,
+    desc: 'اختيار نكهة الآيس كريم المفضلة في نزهة المساء',
+  },
+  {
+    id: 'rw_dinner',
+    title: 'اختيار عشاء الجمعة',
+    icon: '🍕',
+    cost: 100,
+    desc: 'أنت الشيف الحاكم! اختر المطعم أو الوجبة المفضلة للأسرة',
+  },
+  {
+    id: 'rw_park',
+    title: 'رحلة إلى مدينة الألعاب',
+    icon: '🎡',
+    cost: 200,
+    desc: 'تذكرة كاملة ليوم ترفيهي عائلي مليء بالمرح',
+  },
+]);
+
 const RECURRENCE_LABELS = Object.freeze({
   once: 'مرة واحدة',
   daily: 'يومي',
@@ -53,6 +84,68 @@ export function renderTasksView(appState) {
 
   const todoCount = rawTasks.filter((t) => !t.done).length;
   const doneCount = rawTasks.filter((t) => t.done).length;
+
+  const activeMember = members.find((m) => m.id === currentMemberId);
+  const heroMember =
+    activeMember ||
+    members.find((m) => m.role === 'child') ||
+    sortedLeaderboard[0] || { id: currentMemberId, name: currentMemberName, icon: '🦸‍♂️', points: 0 };
+  const heroPoints = Number(heroMember.points) || 0;
+  const heroLevel = Math.floor(heroPoints / 50) + 1;
+  const levelProgressPct = Math.min(100, Math.round(((heroPoints % 50) / 50) * 100));
+
+  const heroCardHtml = `
+    <section class="sec stack hero-xp-card" id="tasks-hero-card">
+      <div class="row">
+        <div>
+          <h3>${esc(heroMember.icon || '🦸‍♂️')} ${esc(heroMember.name)} · بطل المنزل</h3>
+          <span class="badge-ok">المستوى ${heroLevel}: بطل المنزل 🦸‍♂️</span>
+        </div>
+        <div class="chip">
+          <strong class="stitch-num">${heroPoints} ⭐ نجمة ذهبية</strong>
+        </div>
+      </div>
+      <div class="row">
+        <small class="mu">التقدم نحو المستوى ${heroLevel + 1}</small>
+        <small class="mu">${heroPoints % 50} / 50 XP (${levelProgressPct}%)</small>
+      </div>
+      <progress class="stitch-progress xp-progress" value="${Math.min(100, Math.max(0, Number(levelProgressPct) || 0))}" max="100" aria-hidden="true"></progress>
+    </section>`;
+
+  const rewardsShopHtml = `
+    <section class="sec stack" id="family-rewards-shop">
+      <div class="row">
+        <h3>🎁 متجر المكافآت العائلية</h3>
+        <span class="badge-ok">رصيدك: ${heroPoints} ⭐</span>
+      </div>
+      <p class="mu">استبدل نجومك بمكافآت وتجارب عائلية حقيقية متفق عليها مع العائلة!</p>
+      <div class="reward-grid">
+        ${DEFAULT_FAMILY_REWARDS.map((r) => {
+          const pct = Math.min(100, Math.round((heroPoints / r.cost) * 100));
+          const unlocked = heroPoints >= r.cost;
+          return `
+            <article class="reward-card">
+              <div class="stack">
+                <div class="row">
+                  <strong>${esc(r.icon)} ${esc(r.title)}</strong>
+                  <span class="${unlocked ? 'badge-ok' : 'badge-warn'}">${r.cost} ⭐</span>
+                </div>
+                <small class="mu">${esc(r.desc)}</small>
+                <progress class="stitch-progress" value="${Math.min(100, Math.max(0, Number(pct) || 0))}" max="100" aria-hidden="true"></progress>
+              </div>
+              <button type="button" class="btn full ${unlocked ? '' : 'g'}" data-redeem-reward="${esc(r.id)}">
+                ${unlocked ? '🎁 استبدال الآن' : `🔒 متبقي ${Math.max(0, r.cost - heroPoints)} ⭐`}
+              </button>
+            </article>`;
+        }).join('')}
+      </div>
+    </section>`;
+
+  const prideBannerHtml = `
+    <section class="pride-banner stack" id="tasks-pride-banner">
+      <strong>❤️ رسالة فخر من الوالدين</strong>
+      <p class="mu">عمل رائع يا أبطال! التزامكم بترتيب المنزل ومساعدة الأسرة يجعل بيتنا أكثر دفئاً وسعادة كل يوم.</p>
+    </section>`;
 
   const leaderboardHtml = `
     <section class="sec stack" id="tasks-leaderboard-sec">
@@ -177,6 +270,7 @@ export function renderTasksView(appState) {
       </section>`;
 
   return `
+    ${heroCardHtml}
     <section class="sec stack" id="tasks-header-sec">
       <div class="row">
         <h2>📋 المهام المنزلية وتوزيع المسؤوليات</h2>
@@ -193,5 +287,7 @@ export function renderTasksView(appState) {
     ${leaderboardHtml}
     ${addPanelHtml}
     ${tasksListHtml}
+    ${rewardsShopHtml}
+    ${prideBannerHtml}
   `;
 }

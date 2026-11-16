@@ -107,11 +107,13 @@ test('firebase.json, .firebaserc, and database.rules.json are valid and preserve
   );
   const rules = rulesDoc.rules;
 
-  // Legacy paths preserved until Gate G1
-  assert.equal(rules.rooms?.$legacyRoom?.['.read'], true);
-  assert.equal(rules.rooms?.$legacyRoom?.['.write'], true);
-  assert.equal(rules.ai?.$legacyRoom?.['.read'], true);
-  assert.equal(rules.ai?.$legacyRoom?.['.write'], true);
+  // Legacy paths closed against unauthenticated writes
+  assert.equal(rules.rooms?.$legacyRoom?.['.write'], false);
+  assert.equal(rules.ai?.$legacyRoom?.['.write'], false);
+
+  // v3 platform rules exist
+  assert.ok(rules.v3?.families?.$fid, '/v3/families/$fid must exist');
+  assert.ok(rules.v3?.staff?.$uid, '/v3/staff/$uid must exist');
 
   // v2 room rules and role checks
   const roomRules = rules.v2?.rooms?.$rid;

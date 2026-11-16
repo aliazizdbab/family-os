@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+
+<html class="dark" dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Family OS — وضع التسوق السريع بالمتجر</title>
+<!-- Google Fonts: Cairo & Tajawal -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&amp;family=Tajawal:wght@300;400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-variant": "#d3e4fe",
+            "inverse-surface": "#213145",
+            "on-primary": "#ffffff",
+            "tertiary-container": "#23acf1",
+            "on-tertiary-container": "#003d59",
+            "on-primary-container": "#00422b",
+            "surface-dim": "#cbdbf5",
+            "on-tertiary-fixed-variant": "#004c6e",
+            "secondary": "#855300",
+            "surface-container-low": "#eff4ff",
+            "tertiary-fixed-dim": "#89ceff",
+            "on-error": "#ffffff",
+            "primary-fixed-dim": "#4edea3",
+            "on-primary-fixed-variant": "#005236",
+            "surface-container": "#e5eeff",
+            "on-tertiary": "#ffffff",
+            "surface": "#090d16",
+            "on-surface": "#0b1c30",
+            "on-error-container": "#93000a",
+            "on-secondary-fixed": "#2a1700",
+            "surface-container-lowest": "#ffffff",
+            "primary-fixed": "#6ffbbe",
+            "secondary-fixed": "#ffddb8",
+            "primary-container": "#10b981",
+            "surface-tint": "#006c49",
+            "inverse-on-surface": "#eaf1ff",
+            "surface-bright": "#f8f9ff",
+            "surface-container-highest": "#d3e4fe",
+            "on-background": "#0b1c30",
+            "outline-variant": "#bbcabf",
+            "error": "#ba1a1a",
+            "primary": "#10b981",
+            "on-tertiary-fixed": "#001e2f",
+            "on-primary-fixed": "#002113",
+            "background": "#0b1220",
+            "outline": "#6c7a71",
+            "inverse-primary": "#4edea3",
+            "on-secondary-container": "#684000",
+            "error-container": "#ffdad6",
+            "surface-container-high": "#dce9ff",
+            "secondary-fixed-dim": "#ffb95f",
+            "on-surface-variant": "#3c4a42",
+            "tertiary-fixed": "#c9e6ff",
+            "tertiary": "#006591",
+            "on-secondary": "#ffffff",
+            "on-secondary-fixed-variant": "#653e00",
+            "secondary-container": "#fea619"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "2xl": "1rem",
+            "3xl": "1.5rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-md": "0.75rem",
+            "space-xl": "1.5rem",
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "space-xs": "0.25rem",
+            "margin": "1.25rem",
+            "gutter": "1rem",
+            "gutter-mobile": "0.75rem",
+            "margin-mobile": "1rem"
+          },
+          fontFamily: {
+            "body-lg": ["Tajawal", "sans-serif"],
+            "label-lg": ["Cairo", "sans-serif"],
+            "headline-sm": ["Cairo", "sans-serif"],
+            "body-sm": ["Tajawal", "sans-serif"],
+            "label-md": ["Cairo", "sans-serif"],
+            "headline-xl-mobile": ["Cairo", "sans-serif"],
+            "numeral-display": ["Cairo", "sans-serif"],
+            "headline-lg": ["Cairo", "sans-serif"],
+            "body-md": ["Tajawal", "sans-serif"],
+            "headline-xl": ["Cairo", "sans-serif"],
+            "headline-md": ["Cairo", "sans-serif"],
+            "label-sm": ["Cairo", "sans-serif"]
+          },
+          fontSize: {
+            "body-lg": ["17px", { lineHeight: "26px", fontWeight: "400" }],
+            "label-lg": ["14px", { lineHeight: "20px", fontWeight: "600" }],
+            "headline-sm": ["18px", { lineHeight: "26px", fontWeight: "600" }],
+            "body-sm": ["13px", { lineHeight: "20px", fontWeight: "400" }],
+            "label-md": ["12px", { lineHeight: "18px", fontWeight: "500" }],
+            "headline-xl-mobile": ["26px", { lineHeight: "36px", fontWeight: "700" }],
+            "numeral-display": ["28px", { lineHeight: "32px", fontWeight: "700" }],
+            "headline-lg": ["24px", { lineHeight: "34px", fontWeight: "600" }],
+            "body-md": ["15px", { lineHeight: "23px", fontWeight: "400" }],
+            "headline-xl": ["32px", { lineHeight: "44px", fontWeight: "700" }],
+            "headline-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
+            "label-sm": ["11px", { lineHeight: "16px", fontWeight: "500" }]
+          },
+          boxShadow: {
+            "ambient-glow": "0 0 25px -4px rgba(16, 185, 129, 0.25)",
+            "subtle-card": "0 4px 20px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07)"
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill {
+      font-variation-settings: 'FILL' 1;
+    }
+    /* Touch target guarantee and safe areas */
+    .touch-target-giant {
+      min-height: 68px;
+    }
+    /* Smooth toggle state */
+    .item-card-transition {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* Safe scroll padding for docked bottoms */
+    .pb-docked-screen {
+      padding-bottom: 230px;
+    }
+    /* Subtle noise/contrast enhancement */
+    body {
+      background-color: #0b1120;
+      color: #f1f5f9;
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#0b1120] text-slate-100 antialiased min-h-screen selection:bg-emerald-500 selection:text-white pb-docked-screen font-body-md text-body-md">
+<!-- Mobile System Status Bar -->
+<aside aria-label="شريط حالة النظام" class="sticky top-0 z-50 bg-[#0f172a]/95 backdrop-blur-md px-5 pt-3 pb-1.5 flex items-center justify-between text-xs font-bold text-slate-300 select-none border-b border-slate-800/80">
+<div class="flex items-center gap-1.5 tracking-wider">
+<span class="font-headline-sm text-headline-sm text-white">9:41</span>
+</div>
+<div class="flex items-center gap-2 text-slate-400">
+<span class="material-symbols-outlined text-[16px]">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-[16px]">wifi</span>
+<div class="flex items-center gap-0.5 border border-slate-600 rounded-sm px-0.5 py-0.2">
+<div class="w-3.5 h-1.5 bg-emerald-400 rounded-2xs"></div>
+</div>
+</div>
+</aside>
+<!-- Sticky Top Header & Store Control Hub -->
+<header class="sticky top-9 z-40 bg-[#0f172a]/95 backdrop-blur-xl border-b border-slate-800 shadow-xl px-4 py-3">
+<div class="flex items-center justify-between gap-3">
+<!-- Title & Store Tag -->
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center justify-center p-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+<span class="material-symbols-outlined text-xl">shopping_cart</span>
+</span>
+<h1 class="font-headline-md text-headline-md text-white font-black truncate">وضع التسوق السريع</h1>
+</div>
+<div class="flex items-center gap-1.5 mt-1 text-slate-400 pr-1">
+<span class="material-symbols-outlined text-amber-400 text-sm">storefront</span>
+<span class="font-label-md text-label-md text-slate-300 font-semibold truncate">سوبرماركت المدينة المركزي</span>
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+</div>
+</div>
+<!-- Quick Action Toggles: Torch & High Contrast -->
+<div class="flex items-center gap-2">
+<!-- Torch / Flashlight Toggle Button -->
+<button aria-label="تشغيل كشاف الإضاءة للممرات المظلمة" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-90 text-amber-300 border border-slate-700 transition flex items-center justify-center shadow-sm" id="torch-btn" onclick="toggleTorch()" title="كشاف الإضاءة">
+<span class="material-symbols-outlined text-22px" id="torch-icon">flash_on</span>
+</button>
+<!-- High-Contrast Mode Toggle Button -->
+<button aria-label="تبديل وضع التباين الفائق" class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition flex items-center gap-1.5 font-label-md text-label-md font-bold" id="contrast-btn" onclick="toggleContrast()">
+<span class="material-symbols-outlined text-amber-400 text-base">bolt</span>
+<span>تباين ⚡</span>
+</button>
+</div>
+</div>
+<!-- Live Shopping Progress Card (Glow Bar & Velocity) -->
+<div class="mt-3.5 bg-slate-900/90 rounded-2xl p-3 border border-slate-700/80 shadow-inner">
+<div class="flex items-center justify-between text-xs font-semibold mb-2">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981]"></span>
+<span class="font-headline-sm text-headline-sm text-white font-bold">تم جمع 7 من 12 صنفاً</span>
+<span class="font-label-md text-label-md bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">58%</span>
+</div>
+<div class="flex items-center gap-1 text-slate-400 font-label-md text-label-md">
+<span class="material-symbols-outlined text-sm text-amber-400">timer</span>
+<span class="text-amber-200">متبقي تقريباً 10 دقائق</span>
+</div>
+</div>
+<!-- Glowing High-Contrast Progress Track -->
+<div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+<div class="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded-full w-[58%] shadow-[0_0_12px_rgba(16,185,129,0.8)] transition-all duration-500"></div>
+</div>
+</div>
+</header>
+<!-- Quick Floating Barcode Pill (Always accessible thumb trigger) -->
+<div class="px-4 mt-3 flex justify-center">
+<button class="w-full max-w-sm py-2.5 px-4 rounded-full bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white font-headline-sm text-headline-sm font-bold flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(16,185,129,0.35)] active:scale-95 transition-transform border border-emerald-400/40">
+<span class="material-symbols-outlined text-2xl">qr_code_scanner</span>
+<span>مسح باركود سلعة 📷</span>
+<span class="text-xs font-label-sm text-label-sm bg-black/25 px-2 py-0.5 rounded-full text-emerald-100">سريع</span>
+</button>
+</div>
+<!-- Main Shopping Content Container -->
+<main class="px-3.5 pt-4 space-y-5 max-w-md mx-auto">
+<!-- AISLE 1: قسم الخضار والفواكه -->
+<section aria-labelledby="aisle-produce-title" class="space-y-2.5">
+<!-- Section Header -->
+<div class="flex items-center justify-between px-1.5">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-6 bg-emerald-500 rounded-full"></span>
+<h2 class="font-headline-md text-headline-md text-white font-bold tracking-tight" id="aisle-produce-title">قسم الخضار والفواكه 🥬</h2>
+</div>
+<span class="bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-label-md text-label-md px-3 py-1 rounded-full font-bold">
+          ممر 2
+        </span>
+</div>
+<!-- Item 1: طماطم بلدي طازجة -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<!-- Giant Checkbox & Content -->
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد طماطم بلدي طازجة كمكتملة" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2 flex-wrap">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">طماطم بلدي طازجة</h3>
+<span class="bg-amber-500/20 text-amber-300 text-xs font-label-sm text-label-sm px-2 py-0.5 rounded-md border border-amber-500/30">وزن ميزان</span>
+</div>
+<p class="text-xs text-amber-300/90 font-medium mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">info</span>
+                اختر حبات متماسكة للسلطة
+              </p>
+<div class="flex items-center gap-3 mt-1.5 text-xs text-slate-300">
+<span class="bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700 font-semibold">المطلوب: 2 كغ</span>
+<span class="text-slate-400">سعر الكيلو: 3.00 د.ل</span>
+</div>
+</div>
+</div>
+<!-- Price Badge -->
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">6.00</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<!-- Touch-Friendly Quantity Stepper Control -->
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">تعديل الوزن بالسلة:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button aria-label="إنقاص الكمية" class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[44px] text-center qty-indicator">2 كغ</span>
+<button aria-label="زيادة الكمية" class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+<!-- Item 2: تفاح أحمر سكري -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد تفاح أحمر سكري كمكتمل" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">تفاح أحمر سكري</h3>
+<p class="text-xs text-slate-400 mt-1">المطلوب: 1.5 كغ كرتون معبأ</p>
+<div class="flex items-center gap-2 mt-1.5">
+<span class="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-md border border-slate-700 font-medium">مستورد درجة أولى</span>
+</div>
+</div>
+</div>
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">11.25</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">الكمية المسجلة:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[48px] text-center qty-indicator">1.5 كغ</span>
+<button class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+<!-- Item 3: بصل أصفر كيس وسط -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد بصل أصفر كيس وسط" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">بصل أصفر كيس وسط</h3>
+<p class="text-xs text-slate-400 mt-1">كيس شبكي جاهز للطبخ</p>
+<span class="inline-block mt-1 text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">1 كيس</span>
+</div>
+</div>
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">4.50</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">الكمية:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[44px] text-center qty-indicator">1 كيس</span>
+<button class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+</section>
+<!-- AISLE 2: قسم الألبان والمبردات -->
+<section aria-labelledby="aisle-dairy-title" class="space-y-2.5 pt-2">
+<div class="flex items-center justify-between px-1.5">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-6 bg-cyan-400 rounded-full"></span>
+<h2 class="font-headline-md text-headline-md text-white font-bold tracking-tight" id="aisle-dairy-title">قسم الألبان والمبردات 🧀</h2>
+</div>
+<span class="bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-label-md text-label-md px-3 py-1 rounded-full font-bold">
+          ممر 4
+        </span>
+</div>
+<!-- Item 1: حليب كامل الدسم -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد حليب كامل الدسم" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">حليب كامل الدسم</h3>
+<p class="text-xs text-rose-300/90 font-medium mt-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">event_repeat</span>
+                تأكد من تاريخ الصلاحية
+              </p>
+<div class="flex items-center gap-2 mt-1.5">
+<span class="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-md border border-slate-700 font-semibold">3 عبوات (1 لتر)</span>
+</div>
+</div>
+</div>
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">10.50</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">العبوات:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[44px] text-center qty-indicator">3 عبوات</span>
+<button class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+<!-- Item 2: جبنة فيتا يونانية -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد جبنة فيتا يونانية" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">جبنة فيتا يونانية</h3>
+<p class="text-xs text-slate-400 mt-1">قليلة الملح - علبة زجاجية أو صفيح</p>
+<span class="inline-block mt-1 text-xs text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">2 علبة (500غ)</span>
+</div>
+</div>
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">14.00</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">العلب:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[44px] text-center qty-indicator">2 علبة</span>
+<button class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+</section>
+<!-- AISLE 3: قسم المخبز والأفران -->
+<section aria-labelledby="aisle-bakery-title" class="space-y-2.5 pt-2">
+<div class="flex items-center justify-between px-1.5">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-6 bg-amber-400 rounded-full"></span>
+<h2 class="font-headline-md text-headline-md text-white font-bold tracking-tight" id="aisle-bakery-title">قسم المخبز والأفران 🥖</h2>
+</div>
+<span class="bg-amber-500/15 border border-amber-500/30 text-amber-300 font-label-md text-label-md px-3 py-1 rounded-full font-bold">
+          ممر 1
+        </span>
+</div>
+<!-- Item 1: خبز طازج عائلي -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد خبز طازج عائلي" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">خبز طازج عائلي</h3>
+<p class="text-xs text-slate-400 mt-1">ساخن من الفرن الآلي</p>
+<span class="inline-block mt-1 text-xs text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">3 أكياس</span>
+</div>
+</div>
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">6.00</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">الأكياس:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[44px] text-center qty-indicator">3 أكياس</span>
+<button class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+<!-- Item 2: توست حبوب كاملة -->
+<article class="item-card-transition bg-slate-900 border-2 border-slate-700/90 rounded-2xl p-3.5 shadow-subtle-card touch-target-giant flex flex-col justify-between relative overflow-hidden active:border-emerald-500/80">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3 flex-1 min-w-0">
+<button aria-label="تحديد توست حبوب كاملة" class="mt-0.5 w-14 h-14 min-w-[56px] rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 active:scale-90 flex items-center justify-center transition-all shadow-md group" onclick="toggleItem(this)">
+<span class="material-symbols-outlined text-emerald-400 group-hover:scale-110 text-3xl font-bold">check</span>
+</button>
+<div class="flex-1 min-w-0">
+<h3 class="font-headline-sm text-headline-sm text-white font-extrabold truncate">توست حبوب كاملة</h3>
+<p class="text-xs text-slate-400 mt-1">شوفان وبذور الكتان بني</p>
+<span class="inline-block mt-1 text-xs text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">1 كيس</span>
+</div>
+</div>
+<div class="text-left shrink-0">
+<span class="text-xl font-black text-emerald-400 font-numeral-display">4.50</span>
+<span class="text-xs font-bold text-slate-400 block -mt-1 font-label-sm">د.ل</span>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+<span class="text-xs font-bold text-slate-400 font-label-md">الكمية:</span>
+<div class="flex items-center gap-3 bg-slate-800/90 rounded-xl p-1 border border-slate-700">
+<button class="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="decrementQty(this)">-</button>
+<span class="font-numeral-display text-white font-bold text-base min-w-[44px] text-center qty-indicator">1 كيس</span>
+<button class="w-10 h-10 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-90 text-white font-bold text-lg flex items-center justify-center transition" onclick="incrementQty(this)">+</button>
+</div>
+</div>
+</article>
+</section>
+<!-- Collapsible Completed Items Accordion -->
+<section class="pt-3">
+<div class="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+<button aria-expanded="false" class="w-full p-4 flex items-center justify-between text-right bg-slate-800/40 hover:bg-slate-800/70 transition" id="accordion-toggle-btn" onclick="toggleCompletedAccordion()">
+<div class="flex items-center gap-2">
+<span class="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+<span class="material-symbols-outlined text-base">task_alt</span>
+</span>
+<span class="font-headline-sm text-headline-sm text-slate-200 font-bold">الأصناف المنجزة بالسلة</span>
+<span class="bg-slate-700 text-slate-300 text-xs px-2 py-0.5 rounded-full font-bold">5 أصناف</span>
+</div>
+<span class="material-symbols-outlined text-slate-400 transition-transform duration-300" id="accordion-chevron">expand_more</span>
+</button>
+<!-- Completed List (Muted & Struck through) -->
+<div class="divide-y divide-slate-800/60 px-3 hidden" id="completed-container">
+<div class="py-3 flex items-center justify-between opacity-60">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-400 text-xl">check_circle</span>
+<span class="line-through text-slate-300 text-sm font-semibold">زيت زيتون بكر ممتاز (1 لتر)</span>
+</div>
+<span class="text-sm font-bold text-slate-400">24.00 د.ل</span>
+</div>
+<div class="py-3 flex items-center justify-between opacity-60">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-400 text-xl">check_circle</span>
+<span class="line-through text-slate-300 text-sm font-semibold">طبق بيض بلدي طازج (30 بيضة)</span>
+</div>
+<span class="text-sm font-bold text-slate-400">12.00 د.ل</span>
+</div>
+<div class="py-3 flex items-center justify-between opacity-60">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-400 text-xl">check_circle</span>
+<span class="line-through text-slate-300 text-sm font-semibold">معكرونة سباغيتي إيطالية</span>
+</div>
+<span class="text-sm font-bold text-slate-400">3.50 د.ل</span>
+</div>
+<div class="py-3 flex items-center justify-between opacity-60">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-400 text-xl">check_circle</span>
+<span class="line-through text-slate-300 text-sm font-semibold">شاي أحمر خشن فاخر (400غ)</span>
+</div>
+<span class="text-sm font-bold text-slate-400">4.00 د.ل</span>
+</div>
+<div class="py-3 flex items-center justify-between opacity-60">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-emerald-400 text-xl">check_circle</span>
+<span class="line-through text-slate-300 text-sm font-semibold">مناديل مطبخ رول ماكسي</span>
+</div>
+<span class="text-sm font-bold text-slate-400">8.75 د.ل</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Sticky Bottom Summary Bar (Docked Thumb Ergonomics Hub) -->
+<aside aria-label="ملخص السلة والحساب" class="fixed bottom-0 inset-x-0 z-50 bg-[#0f172a]/98 backdrop-blur-2xl border-t border-slate-700/80 shadow-[0_-8px_30px_rgba(0,0,0,0.7)] px-4 pt-3 pb-6 max-w-md mx-auto">
+<!-- Glowing financial card -->
+<div class="bg-slate-900/90 rounded-2xl p-3 border border-emerald-500/25 mb-3 shadow-[0_0_20px_rgba(16,185,129,0.12)]">
+<div class="flex items-center justify-between">
+<div>
+<span class="text-xs text-slate-400 block font-medium font-label-sm">المجموع الفعلي بالسلة:</span>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="text-2xl font-black text-white font-numeral-display">92.50</span>
+<span class="text-xs font-bold text-emerald-400 font-label-md">دينار ليبي (د.ل)</span>
+</div>
+</div>
+<div class="text-left bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700">
+<span class="text-[11px] text-slate-400 block font-label-sm">المتبقي من الميزانية:</span>
+<span class="text-sm font-black text-emerald-400 font-numeral-display">107.50 د.ل</span>
+<span class="text-[10px] text-slate-400 block font-label-sm">من أصل 200 د.ل</span>
+</div>
+</div>
+<!-- Budget Safety Indicator -->
+<div class="mt-2 flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800">
+<span class="flex items-center gap-1 text-emerald-400 font-semibold font-label-sm">
+<span class="material-symbols-outlined text-xs">verified</span>
+          ضمن حدود الميزانية الآمنة
+        </span>
+<span class="font-bold text-slate-300 font-label-sm">وفرت اليوم: 15.00 د.ل</span>
+</div>
+</div>
+<!-- Actions: Giant Primary Checkout CTA + Quick Share to Family WhatsApp -->
+<div class="flex items-center gap-2.5">
+<!-- Main Action CTA Button -->
+<button class="flex-1 h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] text-slate-950 font-black text-lg rounded-2xl flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(16,185,129,0.4)] transition-all font-headline-sm" onclick="finishShopping()">
+<span class="material-symbols-outlined text-2xl font-bold">check_circle</span>
+<span>إنهاء التسوق وحفظ الفاتورة</span>
+</button>
+<!-- WhatsApp Family Share Button -->
+<button aria-label="مشاركة القائمة مع مجموعة العائلة على واتساب" class="w-14 h-14 min-w-[56px] rounded-2xl bg-slate-800 border border-slate-700 hover:bg-slate-700 active:scale-95 text-emerald-400 flex items-center justify-center transition shadow-md" onclick="shareWithFamily()" title="مشاركة مع العائلة">
+<span class="material-symbols-outlined text-26px">share</span>
+</button>
+</div>
+</aside>
+<!-- Interactive Logic for Shopping Actions -->
+<script>
+    // Torch Toggle
+    let torchActive = false;
+    function toggleTorch() {
+      torchActive = !torchActive;
+      const btn = document.getElementById('torch-btn');
+      const icon = document.getElementById('torch-icon');
+      if (torchActive) {
+        btn.classList.add('bg-amber-400', 'text-slate-950', 'ring-4', 'ring-amber-400/40');
+        btn.classList.remove('bg-slate-800', 'text-amber-300');
+        icon.innerText = 'flashlight_on';
+      } else {
+        btn.classList.remove('bg-amber-400', 'text-slate-950', 'ring-4', 'ring-amber-400/40');
+        btn.classList.add('bg-slate-800', 'text-amber-300');
+        icon.innerText = 'flash_on';
+      }
+    }
+
+    // High Contrast Mode Toggle
+    let highContrast = false;
+    function toggleContrast() {
+      highContrast = !highContrast;
+      const body = document.body;
+      const btn = document.getElementById('contrast-btn');
+      if (highContrast) {
+        body.classList.add('contrast-125', 'brightness-110');
+        btn.classList.add('bg-emerald-500', 'text-black', 'border-emerald-300');
+      } else {
+        body.classList.remove('contrast-125', 'brightness-110');
+        btn.classList.remove('bg-emerald-500', 'text-black', 'border-emerald-300');
+      }
+    }
+
+    // Item Checkbox Logic (Haptic simulation and visual strike)
+    function toggleItem(btn) {
+      const article = btn.closest('article');
+      const isCompleted = article.dataset.completed === 'true';
+
+      if (!isCompleted) {
+        article.dataset.completed = 'true';
+        article.classList.add('opacity-40', 'scale-[0.98]');
+        btn.classList.remove('bg-emerald-500/10', 'text-emerald-400');
+        btn.classList.add('bg-emerald-500', 'text-slate-950');
+      } else {
+        article.dataset.completed = 'false';
+        article.classList.remove('opacity-40', 'scale-[0.98]');
+        btn.classList.add('bg-emerald-500/10', 'text-emerald-400');
+        btn.classList.remove('bg-emerald-500', 'text-slate-950');
+      }
+    }
+
+    // Quantity Handlers
+    function incrementQty(btn) {
+      const parent = btn.closest('div');
+      const indicator = parent.querySelector('.qty-indicator');
+      let currentVal = parseFloat(indicator.innerText);
+      if (!isNaN(currentVal)) {
+        let suffix = indicator.innerText.replace(/[0-9.]/g, '').trim();
+        indicator.innerText = (currentVal + 1) + ' ' + suffix;
+      }
+    }
+
+    function decrementQty(btn) {
+      const parent = btn.closest('div');
+      const indicator = parent.querySelector('.qty-indicator');
+      let currentVal = parseFloat(indicator.innerText);
+      if (!isNaN(currentVal) && currentVal > 1) {
+        let suffix = indicator.innerText.replace(/[0-9.]/g, '').trim();
+        indicator.innerText = (currentVal - 1) + ' ' + suffix;
+      }
+    }
+
+    // Accordion for completed items
+    function toggleCompletedAccordion() {
+      const container = document.getElementById('completed-container');
+      const chevron = document.getElementById('accordion-chevron');
+      const btn = document.getElementById('accordion-toggle-btn');
+      const isHidden = container.classList.contains('hidden');
+
+      if (isHidden) {
+        container.classList.remove('hidden');
+        chevron.style.transform = 'rotate(180deg)';
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        container.classList.add('hidden');
+        chevron.style.transform = 'rotate(0deg)';
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    function shareWithFamily() {
+      alert('تم تجهيز ملخص الفاتورة وإرساله لمجموعة العائلة على الواتساب 🛒💚');
+    }
+
+    function finishShopping() {
+      alert('تم إنهاء جولة التسوق وحفظ الفاتورة بالمحفظة العائلية بنجاح! 🎉');
+    }
+  </script>
+</body></html>

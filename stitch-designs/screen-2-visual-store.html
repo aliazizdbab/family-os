@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>متجر ومخزن العائلة — Family OS</title>
+<!-- Google Fonts: Cairo & Tajawal -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&amp;family=Tajawal:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-secondary-container": "#684000",
+            "on-tertiary-fixed": "#001e2f",
+            "secondary-container": "#fea619",
+            "surface-bright": "#f8f9ff",
+            "surface-container-low": "#eff4ff",
+            "surface-dim": "#cbdbf5",
+            "primary-fixed-dim": "#4edea3",
+            "surface-container": "#e5eeff",
+            "inverse-surface": "#213145",
+            "error": "#ba1a1a",
+            "surface-container-highest": "#d3e4fe",
+            "surface-container-lowest": "#ffffff",
+            "on-surface": "#0b1c30",
+            "on-error-container": "#93000a",
+            "outline": "#6c7a71",
+            "surface-container-high": "#dce9ff",
+            "on-surface-variant": "#3c4a42",
+            "primary-fixed": "#6ffbbe",
+            "outline-variant": "#bbcabf",
+            "primary": "#006c49",
+            "on-secondary": "#ffffff",
+            "surface-variant": "#d3e4fe",
+            "on-primary-fixed": "#002113",
+            "surface": "#f8f9ff",
+            "on-primary-container": "#00422b",
+            "secondary-fixed-dim": "#ffb95f",
+            "primary-container": "#10b981",
+            "on-tertiary-fixed-variant": "#004c6e",
+            "on-secondary-fixed-variant": "#653e00",
+            "tertiary-fixed": "#c9e6ff",
+            "surface-tint": "#006c49",
+            "on-secondary-fixed": "#2a1700",
+            "on-primary": "#ffffff",
+            "tertiary-container": "#23acf1",
+            "on-primary-fixed-variant": "#005236",
+            "inverse-primary": "#4edea3",
+            "secondary-fixed": "#ffddb8",
+            "tertiary": "#006591",
+            "on-tertiary": "#ffffff",
+            "background": "#f8f9ff",
+            "inverse-on-surface": "#eaf1ff",
+            "on-error": "#ffffff",
+            "on-tertiary-container": "#003d59",
+            "tertiary-fixed-dim": "#89ceff",
+            "error-container": "#ffdad6",
+            "on-background": "#0b1c30",
+            "secondary": "#855300"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-sm": "0.5rem",
+            "margin-mobile": "1rem",
+            "margin": "1.25rem",
+            "space-xs": "0.25rem",
+            "space-lg": "1rem",
+            "gutter": "1rem",
+            "gutter-mobile": "0.75rem",
+            "space-xl": "1.5rem",
+            "space-md": "0.75rem"
+          },
+          "fontFamily": {
+            "headline-lg": ["Cairo"],
+            "headline-md": ["Cairo"],
+            "headline-sm": ["Cairo"],
+            "numeral-display": ["Cairo"],
+            "body-lg": ["Tajawal"],
+            "body-md": ["Tajawal"],
+            "body-sm": ["Tajawal"],
+            "label-lg": ["Cairo"],
+            "label-md": ["Cairo"],
+            "label-sm": ["Cairo"],
+            "headline-xl": ["Cairo"],
+            "headline-xl-mobile": ["Cairo"]
+          },
+          "fontSize": {
+            "headline-lg": ["24px", { "lineHeight": "34px", "fontWeight": "600" }],
+            "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+            "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+            "numeral-display": ["28px", { "lineHeight": "32px", "fontWeight": "700" }],
+            "body-lg": ["17px", { "lineHeight": "26px", "fontWeight": "400" }],
+            "body-md": ["15px", { "lineHeight": "23px", "fontWeight": "400" }],
+            "body-sm": ["13px", { "lineHeight": "20px", "fontWeight": "400" }],
+            "label-lg": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "label-md": ["12px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "label-sm": ["11px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "headline-xl": ["32px", { "lineHeight": "44px", "fontWeight": "700" }],
+            "headline-xl-mobile": ["26px", { "lineHeight": "36px", "fontWeight": "700" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      display: none;
+    }
+    .custom-scroll {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen pb-44 selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- Top App Bar (Shared Components Anchor with Mobile Refinement) -->
+<header class="sticky top-0 z-40 bg-surface-container-lowest/95 backdrop-blur-md shadow-sm px-margin-mobile py-space-sm transition-all duration-200">
+<div class="flex items-center justify-between w-full">
+<!-- Leading: Family Avatar & Brand Title -->
+<div class="flex items-center gap-2.5">
+<div class="relative">
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden bg-surface-container-low shadow-sm flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="A warm and modern portrait illustration of a loving Arab family with joyful expressions, set against a calm emerald background with soft daylight glow, minimalist vector line detailing and friendly domestic aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdmhsz21FBOtflamuacbn-SQFJdK2D3Gycmx7_B36F7vnpVsQinLWRv5sVIhyzqxwbyZ-YaJO_6cFQF9GS3PBv8l3WeWBgQ0tjP8-VE1cYiK6Xp-Ro5PRaKTnWF2d2COkBbUgQJ25mAM5CT82Vs3foJpf8WW4U4mqd1QICjeZC5XPVbdJ5DuOrLHAcOmavjyi5FGXgc4lqqbYzR_e1SmfN_Blk3pvwmVs0aZs37Vgcor8GxNw3hsH4kyCDO_Pd_zz4-AOJOu5Orn0"/>
+</div>
+<span class="absolute bottom-0 right-0 w-3 h-3 bg-primary-container border-2 border-surface-container-lowest rounded-full"></span>
+</div>
+<div class="flex flex-col text-right">
+<div class="flex items-center gap-1.5">
+<h1 class="font-headline-sm text-headline-sm text-primary tracking-tight">متجر ومخزن العائلة</h1>
+<span class="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold">عائلة الفرجاني</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+<span>طلب واحتياجات المنزل الذكي</span>
+</p>
+</div>
+</div>
+<!-- Trailing Action Cluster: Quick Barcode & Sync Badge -->
+<div class="flex items-center gap-1.5">
+<button aria-label="مزامنة المخزن" class="p-2 text-primary hover:bg-surface-container-low rounded-full transition-transform active:scale-95 flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-primary text-[22px]">cloud_done</span>
+</button>
+<button aria-label="ماسح الباركود" class="w-9 h-9 rounded-full bg-surface-container-low text-on-surface flex items-center justify-center hover:bg-surface-container transition-transform active:scale-95 shadow-sm" type="button">
+<span class="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Scrollable Canvas -->
+<main class="px-margin-mobile pt-space-md space-y-space-md max-w-lg mx-auto">
+<!-- Search & Fast Add Bar -->
+<section class="space-y-space-xs">
+<div class="relative flex items-center w-full">
+<div class="absolute right-3.5 flex items-center pointer-events-none text-outline">
+<span class="material-symbols-outlined text-[22px]">search</span>
+</div>
+<input class="w-full h-12 pr-11 pl-20 bg-surface-container-lowest border border-outline-variant/60 rounded-xl font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none focus:border-primary-container focus:ring-2 focus:ring-primary-container/20 transition-all shadow-sm" placeholder="ابحث عن منتج، مؤونة، أو قطعة صيانة..." type="text"/>
+<!-- Embedded Quick Actions inside Input -->
+<div class="absolute left-2 flex items-center gap-1">
+<button aria-label="أمر صوتي" class="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">mic</span>
+</button>
+<button aria-label="ماسح الباركود السريع لإضافة النواقص" class="p-1.5 rounded-lg text-primary bg-primary/10 hover:bg-primary/20 transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">barcode_scanner</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Horizontal Category Pills Filter -->
+<section class="overflow-x-auto custom-scroll -mx-margin-mobile px-margin-mobile pt-1">
+<div class="flex items-center gap-2 pb-1">
+<!-- Active Pill: الكل -->
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-md text-label-md bg-primary-container text-on-primary shadow-sm flex items-center gap-1 transition-transform active:scale-95" type="button">
+<span>الكل</span>
+</button>
+<!-- Category: السوبرماركت -->
+<button class="whitespace-nowrap px-3.5 py-2 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center gap-1 active:scale-95" type="button">
+<span>السوبرماركت 🛒</span>
+</button>
+<!-- Category: الخضار والفواكه -->
+<button class="whitespace-nowrap px-3.5 py-2 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center gap-1 active:scale-95" type="button">
+<span>الخضار والفواكه 🥬</span>
+</button>
+<!-- Category: المخبز -->
+<button class="whitespace-nowrap px-3.5 py-2 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center gap-1 active:scale-95" type="button">
+<span>المخبز 🥖</span>
+</button>
+<!-- Category: السيارة والصيانة -->
+<button class="whitespace-nowrap px-3.5 py-2 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center gap-1 active:scale-95" type="button">
+<span>السيارة والصيانة 🚗</span>
+</button>
+<!-- Category: الأجهزة المنزلية -->
+<button class="whitespace-nowrap px-3.5 py-2 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center gap-1 active:scale-95" type="button">
+<span>الأجهزة المنزلية 🔌</span>
+</button>
+<!-- Category: الصيدلية -->
+<button class="whitespace-nowrap px-3.5 py-2 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant border border-outline-variant/60 hover:bg-surface-container-low transition-colors flex items-center gap-1 active:scale-95" type="button">
+<span>الصيدلية 💊</span>
+</button>
+</div>
+</section>
+<!-- Smart Pantry Alert & Fast Reorder Card -->
+<section class="bg-gradient-to-l from-amber-500/10 via-surface-container-lowest to-surface-container-lowest border border-secondary-container/40 rounded-xl p-3.5 shadow-sm relative overflow-hidden">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-2.5">
+<div class="w-8 h-8 rounded-lg bg-secondary-container/20 text-secondary flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface text-sm font-bold">تنبيه ذكي: نواقص المخزن العاجلة</span>
+<span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 leading-relaxed">
+              حليب طازج، زيت زيتون، فلتر زيت سيارة (مستوى المخزون حرج)
+            </p>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-outline-variant/30 flex items-center justify-between">
+<div class="flex items-center -space-x-1.5 rtl:space-x-reverse">
+<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-container-high text-[10px] font-bold text-on-surface border border-surface-container-lowest">٣</span>
+<span class="text-xs font-label-sm text-on-surface-variant pr-2">أصناف موصى بها اليوم</span>
+</div>
+<button class="px-3 py-1.5 rounded-lg bg-secondary-container/15 hover:bg-secondary-container/25 text-on-secondary-container font-label-md text-label-md font-bold transition-all active:scale-95 flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">add_shopping_cart</span>
+<span>إضافة كل النواقص للسلة</span>
+</button>
+</div>
+</section>
+<!-- 2-Column Visual Bento Product Grid -->
+<section class="space-y-space-xs">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">قائمة المؤونة والمشتريات</h2>
+<span class="font-label-sm text-label-sm text-outline">٦ عناصر نشطة</span>
+</div>
+<div class="grid grid-cols-2 gap-gutter-mobile">
+<!-- Product 1: حليب كامل الدسم -->
+<article class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-primary-container/40 transition-all">
+<div>
+<div class="relative w-full aspect-square rounded-lg bg-surface-container-low overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="A clean, premium glass bottle and carton of fresh whole milk placed on a minimalist marble kitchen counter with soft morning ambient daylight and fresh family pantry context." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAB2cOCvb7t8kY4pEnnqZJS3ArUIFSvwoVdarOeyrXD_lTr-N9lsp-by5svoosmjMtk4VR4MUXZg1Ny8rGEivg93jUiV7zOLvFJLhAoqJPllydEa3Q4jMqTNNXJ6j52Nmmaa-Dq5L939D31K3yjJkMwmfS4cGDku4NqgqFBx8R_Z8UsH-MhIYjgHSRyM1Gu-6TJuTbptyCXhB1L3hux5TYMqlJqSQhifRV_0hi8tfeBSQcHEGEuNhNDKTd7fc6OXTr-1OnqFZlRwW8"/>
+<span class="absolute top-1.5 right-1.5 bg-error-container text-on-error-container font-label-sm text-[10px] px-1.5 py-0.5 rounded-md font-medium">
+                متبقي 2 في المخزن
+              </span>
+</div>
+<span class="font-label-sm text-[11px] text-outline block">السوبرماركت</span>
+<h3 class="font-headline-sm text-headline-sm text-sm text-on-surface mt-0.5 line-clamp-1 font-semibold">حليب كامل الدسم 1 لتر</h3>
+<div class="mt-1 flex items-baseline gap-1">
+<span class="font-numeral-display text-[18px] text-primary font-bold">3.50</span>
+<span class="font-label-sm text-[11px] text-on-surface-variant">د.ل</span>
+</div>
+</div>
+<!-- Stepper Count: 2 -->
+<div class="mt-3 pt-2 border-t border-outline-variant/30 flex items-center justify-between">
+<button aria-label="زيادة" class="w-7 h-7 rounded-md bg-surface-container-low text-primary flex items-center justify-center hover:bg-primary-container hover:text-white transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+</button>
+<span class="font-headline-sm text-sm font-bold text-on-surface px-2">2</span>
+<button aria-label="إنقاص" class="w-7 h-7 rounded-md bg-surface-container-low text-on-surface-variant flex items-center justify-center hover:bg-surface-container transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">remove</span>
+</button>
+</div>
+</article>
+<!-- Product 2: زيت زيتون بكر ممتاز -->
+<article class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-primary-container/40 transition-all">
+<div>
+<div class="relative w-full aspect-square rounded-lg bg-surface-container-low overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="An authentic dark green tinted bottle of cold-pressed extra virgin olive oil adorned with fresh olive branches on a clean Mediterranean kitchen surface in warm natural light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmRr-UL5T0eI7es_yFLsUhOP0T4ZeOOPuQQfiptvmfHfIU3SoKMWlW9x9NH1Ck0IYUcTZx5kGTkenC10D1p-Rg2ywwQ3KBpZlbXx88A633_J9VJO_ysPGnZjX1bSL9wMfb-dcPYQhQ3gjCcK7WTxJ7bbwlbO4dYn0JN18m_dN_GioN17a9vUzb9dtjjX00QD8uicwn7XNnmAzPjmMyKe6ZIVCTGURpXH_MsdN1hFszGIkVMNnX5uG8Kf9AjuIEJzXsBbU8jeEHFjI"/>
+<span class="absolute top-1.5 right-1.5 bg-primary/10 text-primary font-label-sm text-[10px] px-1.5 py-0.5 rounded-md font-bold">
+                عضوي
+              </span>
+</div>
+<span class="font-label-sm text-[11px] text-outline block">السوبرماركت</span>
+<h3 class="font-headline-sm text-headline-sm text-sm text-on-surface mt-0.5 line-clamp-1 font-semibold">زيت زيتون بكر ممتاز 1 لتر</h3>
+<div class="mt-1 flex items-baseline gap-1">
+<span class="font-numeral-display text-[18px] text-primary font-bold">24.00</span>
+<span class="font-label-sm text-[11px] text-on-surface-variant">د.ل</span>
+</div>
+</div>
+<!-- Stepper Count: 1 -->
+<div class="mt-3 pt-2 border-t border-outline-variant/30 flex items-center justify-between">
+<button aria-label="زيادة" class="w-7 h-7 rounded-md bg-surface-container-low text-primary flex items-center justify-center hover:bg-primary-container hover:text-white transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+</button>
+<span class="font-headline-sm text-sm font-bold text-on-surface px-2">1</span>
+<button aria-label="إنقاص" class="w-7 h-7 rounded-md bg-surface-container-low text-on-surface-variant flex items-center justify-center hover:bg-surface-container transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">remove</span>
+</button>
+</div>
+</article>
+<!-- Product 3: فلتر زيت سيارة تويوتا أصلي -->
+<article class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-primary-container/40 transition-all">
+<div>
+<div class="relative w-full aspect-square rounded-lg bg-surface-container-low overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="An authentic branded automotive engine oil filter in original packaging resting on a tidy garage workbench under crisp studio lighting with subtle automotive tools." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8Es_fGxLN0uXZ1xE2Rpw2PivyY32-rBPaNA62T7-1VzoGNfSCDXBTlBreRATmzzp5BJHrtDC-EmweGuOwALh3ru2Ugw7WqgK3H2B6GZx1chehqzburx2vbUIbDx63Zq0e94ojWQ5R7307zFUbiuaJPaIEoIdxWwauKDL-3DszsPpN9flNhDSCAv57QjryYl0VuiLo1yL1CYR_7MTdoVcyVdY3NcPGMjWXIHTn2pZzxumeE4NUSd2SQ4vtqLCu7iiEfos9MjGLFnA"/>
+<span class="absolute top-1.5 right-1.5 bg-secondary-container/20 text-on-secondary-container font-label-sm text-[10px] px-1.5 py-0.5 rounded-md font-semibold">
+                مجدول للصيانة
+              </span>
+</div>
+<span class="font-label-sm text-[11px] text-outline block">السيارة والصيانة</span>
+<h3 class="font-headline-sm text-headline-sm text-sm text-on-surface mt-0.5 line-clamp-1 font-semibold">فلتر زيت تويوتا أصلي</h3>
+<div class="mt-1 flex items-baseline gap-1">
+<span class="font-numeral-display text-[18px] text-primary font-bold">28.00</span>
+<span class="font-label-sm text-[11px] text-on-surface-variant">د.ل</span>
+</div>
+</div>
+<!-- Stepper Count: 1 -->
+<div class="mt-3 pt-2 border-t border-outline-variant/30 flex items-center justify-between">
+<button aria-label="زيادة" class="w-7 h-7 rounded-md bg-surface-container-low text-primary flex items-center justify-center hover:bg-primary-container hover:text-white transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+</button>
+<span class="font-headline-sm text-sm font-bold text-on-surface px-2">1</span>
+<button aria-label="إنقاص" class="w-7 h-7 rounded-md bg-surface-container-low text-on-surface-variant flex items-center justify-center hover:bg-surface-container transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">remove</span>
+</button>
+</div>
+</article>
+<!-- Product 4: خبز طازج عائلي -->
+<article class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-primary-container/40 transition-all">
+<div>
+<div class="relative w-full aspect-square rounded-lg bg-surface-container-low overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="Golden crisp freshly baked artisanal traditional flatbread in a rustic woven wicker basket with warm kitchen ambient illumination and gentle rising steam." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCgqFE7XUAYYj9iq0Xq-Qj_oMIWVCe56Wtopz-bnMs9dmaT_lJvSRjcGz7QIMgiHD4ZXCBypk_A5rfvUss74VnsoRKEQCqWjGtXNjTcsMwInDKuQKOLChPtxrELP1Vf8rHjPb5_bjZNc3w9UcS2UtWOSrntl9QenUIcc7qv3gH2aHbsQp4_WFWUVadfBuY9RbQ_p90DtJqwSW9CplDmhJ-VjMq2HjtVJTu8Ki3A_-fiVn7Vj7zOQMRWAYZ3biv4eW1TItB_HOV6mXU"/>
+<span class="absolute top-1.5 right-1.5 bg-primary-container/15 text-primary font-label-sm text-[10px] px-1.5 py-0.5 rounded-md font-semibold">
+                طازج اليوم
+              </span>
+</div>
+<span class="font-label-sm text-[11px] text-outline block">المخبز</span>
+<h3 class="font-headline-sm text-headline-sm text-sm text-on-surface mt-0.5 line-clamp-1 font-semibold">خبز طازج عائلي (كيس)</h3>
+<div class="mt-1 flex items-baseline gap-1">
+<span class="font-numeral-display text-[18px] text-primary font-bold">2.00</span>
+<span class="font-label-sm text-[11px] text-on-surface-variant">د.ل</span>
+</div>
+</div>
+<!-- Stepper Count: 3 -->
+<div class="mt-3 pt-2 border-t border-outline-variant/30 flex items-center justify-between">
+<button aria-label="زيادة" class="w-7 h-7 rounded-md bg-surface-container-low text-primary flex items-center justify-center hover:bg-primary-container hover:text-white transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+</button>
+<span class="font-headline-sm text-sm font-bold text-on-surface px-2">3</span>
+<button aria-label="إنقاص" class="w-7 h-7 rounded-md bg-surface-container-low text-on-surface-variant flex items-center justify-center hover:bg-surface-container transition-colors active:scale-90" type="button">
+<span class="material-symbols-outlined text-[16px]">remove</span>
+</button>
+</div>
+</article>
+<!-- Product 5: تفاح أحمر محلي -->
+<article class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-primary-container/40 transition-all">
+<div>
+<div class="relative w-full aspect-square rounded-lg bg-surface-container-low overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="Vibrant shiny red crisp local apples resting in an eco-friendly wooden bowl with subtle water drops and gentle bright morning light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuASF6ivRof04mdsJuifmX_RafLePNsDkrshrb4A7Gl2BwBnCeybAxewT4QODlu_WAiCgBJjsrkhJbfZYot07N9IljQPkL4j_Tb79TxrF29fa_-mNDHcb_3ZrfnVb6ga8MU80kTIW1uwyaAJNAuNizHYj9ivL9PYPzczYew7C28HAJI05bsOho13p0ucUbKCBvaazVMH02by-_fxDZea9-lYwm0dj3gQIW00KKrv416piDCNo6hq5sMKAZz7H3iHJxnj4FYhfJJBC6E"/>
+</div>
+<span class="font-label-sm text-[11px] text-outline block">الخضار والفواكه</span>
+<h3 class="font-headline-sm text-headline-sm text-sm text-on-surface mt-0.5 line-clamp-1 font-semibold">تفاح أحمر محلي (كيلو)</h3>
+<div class="mt-1 flex items-baseline gap-1">
+<span class="font-numeral-display text-[18px] text-primary font-bold">7.50</span>
+<span class="font-label-sm text-[11px] text-on-surface-variant">د.ل</span>
+</div>
+</div>
+<!-- Add Button (Count 0) -->
+<div class="mt-3 pt-2 border-t border-outline-variant/30">
+<button class="w-full py-1.5 rounded-lg border border-primary-container text-primary font-label-md text-label-md flex items-center justify-center gap-1 hover:bg-primary-container hover:text-white transition-colors active:scale-95" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>إضافة</span>
+</button>
+</div>
+</article>
+<!-- Product 6: مسكن وبنادول للأطفال -->
+<article class="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-3 flex flex-col justify-between shadow-sm hover:border-primary-container/40 transition-all">
+<div>
+<div class="relative w-full aspect-square rounded-lg bg-surface-container-low overflow-hidden mb-2">
+<img class="w-full h-full object-cover" data-alt="A clean pharmaceutical bottle of pediatric syrup and fever medicine on a clean clinical white glass shelf with soft ambient home pharmacy lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoQGeTg7z4XaslaGTjGuhGHeFA_MzjuNq1j_vk0KFgl3ddjvHfnY_VBWM97EftLkuilqlyUiqY8mGqchSDQTdMKW5qXdg3pdCygsvum05mmIPHnRerowCkrdWVVHraDyM5XlOVMsHlC2wrSlSdfdsE1L6mZxolSGwFVCsw_RNhQ-j69ude1fUY6lKg5dU6dNCtVdnWpzKIMsaA3vK8t5YASa71ky4c6NsSEJjocUiD6Ufsa7_lWMqLa51rOB71QOj-ZM_4NskYc2Y"/>
+<span class="absolute top-1.5 right-1.5 bg-blue-100 text-blue-800 font-label-sm text-[10px] px-1.5 py-0.5 rounded-md font-semibold">
+                صيدلية العائلة
+              </span>
+</div>
+<span class="font-label-sm text-[11px] text-outline block">الصيدلية</span>
+<h3 class="font-headline-sm text-headline-sm text-sm text-on-surface mt-0.5 line-clamp-1 font-semibold">مسكن وبنادول للأطفال</h3>
+<div class="mt-1 flex items-baseline gap-1">
+<span class="font-numeral-display text-[18px] text-primary font-bold">9.00</span>
+<span class="font-label-sm text-[11px] text-on-surface-variant">د.ل</span>
+</div>
+</div>
+<!-- Add Button (Count 0) -->
+<div class="mt-3 pt-2 border-t border-outline-variant/30">
+<button class="w-full py-1.5 rounded-lg border border-primary-container text-primary font-label-md text-label-md flex items-center justify-center gap-1 hover:bg-primary-container hover:text-white transition-colors active:scale-95" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>إضافة</span>
+</button>
+</div>
+</article>
+</div>
+</section>
+</main>
+<!-- Floating Glassmorphic Bottom Cart Bar -->
+<aside class="fixed bottom-[68px] inset-x-0 z-40 px-margin-mobile max-w-lg mx-auto">
+<div class="bg-inverse-surface/95 text-inverse-on-surface backdrop-blur-md rounded-2xl p-3 shadow-xl border border-white/10 flex items-center justify-between gap-3">
+<!-- Cart Summary Text -->
+<div class="flex items-center gap-2.5">
+<div class="w-10 h-10 rounded-xl bg-primary-container text-white flex items-center justify-center relative shrink-0">
+<span class="material-symbols-outlined text-[22px]">shopping_cart</span>
+<span class="absolute -top-1.5 -left-1.5 w-5 h-5 bg-secondary-container text-on-secondary-container text-[11px] font-bold rounded-full flex items-center justify-center border-2 border-inverse-surface">
+            6
+          </span>
+</div>
+<div class="text-right">
+<p class="font-headline-sm text-xs font-semibold text-inverse-on-surface">السلة العائلية المشتركة</p>
+<div class="flex items-baseline gap-1">
+<span class="font-body-sm text-xs text-outline-variant">المجموع:</span>
+<span class="font-numeral-display text-[17px] text-primary-fixed font-bold">74.00</span>
+<span class="font-label-sm text-[10px] text-outline-variant">د.ل</span>
+</div>
+</div>
+</div>
+<!-- Action Button -->
+<button class="bg-primary-container hover:bg-primary-container/90 text-on-primary px-3.5 py-2.5 rounded-xl font-label-md text-label-md font-bold flex items-center gap-1.5 shadow-md active:scale-95 transition-transform shrink-0" type="button">
+<span>طلب الاعتماد</span>
+<span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+</button>
+</div>
+</aside>
+<!-- Fixed Bottom Navigation Bar (Executed from Shared Components JSON) -->
+<!-- Contextual Active: 'المتجر' -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-space-xs py-space-xs bg-surface-container-lowest border-t border-outline-variant/30 shadow-md">
+<!-- Tab 1: الرئيسية -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary px-3 py-1.5 transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[24px]">home</span>
+<span class="font-label-sm text-label-sm mt-0.5">الرئيسية</span>
+</a>
+<!-- Tab 2: المتجر (ACTIVE: Direct Match) -->
+<a class="flex flex-col items-center justify-center bg-primary-container/15 text-primary rounded-full px-3 py-1.5 transition-transform duration-150 active:scale-95 font-bold" href="#">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">shopping_bag</span>
+<span class="font-label-sm text-label-sm mt-0.5">المتجر</span>
+</a>
+<!-- Tab 3: المهام -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary px-3 py-1.5 transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[24px]">checklist</span>
+<span class="font-label-sm text-label-sm mt-0.5">المهام</span>
+</a>
+<!-- Tab 4: الصيانة -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary px-3 py-1.5 transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[24px]">build</span>
+<span class="font-label-sm text-label-sm mt-0.5">الصيانة</span>
+</a>
+<!-- Tab 5: المساعد الذكي -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary px-3 py-1.5 transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined text-[24px]">smart_toy</span>
+<span class="font-label-sm text-label-sm mt-0.5">المساعد الذكي</span>
+</a>
+</nav>
+</body></html>

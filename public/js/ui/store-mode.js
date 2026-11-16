@@ -232,6 +232,8 @@ export function renderStoreModeView(appState) {
   const budgetMonthly = Number(snap.budget?.monthly) || 0;
   const overBudget = budgetMonthly > 0 && paidTotal > budgetMonthly;
   const nearBudget = budgetMonthly > 0 && !overBudget && paidTotal >= budgetMonthly * 0.85;
+  const tripPct =
+    allItems.length > 0 ? Math.round((doneItems.length / allItems.length) * 100) : 0;
 
   const catalog = buildMergedStoreCatalog(appState);
   const catFilter = appState.storeCatFilter || 'all';
@@ -295,37 +297,43 @@ export function renderStoreModeView(appState) {
           <div class="ch">
             <span>${esc(cat.i)} ${esc(cat.n)} (${catCatalog.length})</span>
           </div>
-          ${catCatalog
-            .map((entry) => {
-              const normName = String(entry.n).trim().toLowerCase();
-              const inCart = remainingByName.get(normName);
-              return `
-                <div class="list-item stack" data-catalog-row="${esc(normName)}" data-catalog-name="${esc(normName)}">
-                  <div class="row">
-                    <div class="grow">
-                      <strong>${esc(entry.n)}</strong>
-                      ${entry.autoLearned ? '<span class="badge-ok">🆕 مضاف تلقائياً</span>' : ''}
-                      ${
-                        inCart
-                          ? `<span class="badge-ok">✅ في السلة (${esc(inCart.q || '1')})</span>`
-                          : ''
-                      }
-                      <div>
-                        <small class="mu">📦 ${esc(entry.q || '1')} · 💰 ${Number(entry.p) || 0} د.ل</small>
+          <div class="store-product-grid">
+            ${catCatalog
+              .map((entry) => {
+                const normName = String(entry.n).trim().toLowerCase();
+                const inCart = remainingByName.get(normName);
+                return `
+                  <article class="store-product-card" data-catalog-row="${esc(normName)}" data-catalog-name="${esc(normName)}">
+                    <div class="stack">
+                      <div class="row">
+                        <span class="chip">${esc(cat.i)}</span>
+                        ${inCart ? '<span class="badge-ok">✅ في السلة</span>' : ''}
+                        ${entry.autoLearned ? '<span class="badge-ok">🆕 مضاف تلقائياً</span>' : ''}
                       </div>
+                      <strong>${esc(entry.n)}</strong>
+                      <small class="mu">📦 ${esc(entry.q || '1')}</small>
+                      <strong class="stitch-num">${Number(entry.p) || 0} د.ل</strong>
                     </div>
-                    <button
-                      type="button"
-                      class="btn ${inCart ? 'g' : ''}"
-                      data-catalog-add="${esc(entry.n)}"
-                      data-catalog-cat="${esc(entry.c)}"
-                      data-catalog-q="${esc(entry.q || '')}"
-                      data-catalog-p="${Number(entry.p) || 0}"
-                    >${inCart ? '➕ زيادة بالسلة' : '➕ أضف للسلة'}</button>
-                  </div>
-                </div>`;
-            })
-            .join('')}
+                    ${
+                      inCart
+                        ? `<div class="qty-stepper">
+                            <button type="button" class="btn" data-cart-step-inc="${esc(inCart.id)}" aria-label="زيادة كمية ${esc(entry.n)}">+</button>
+                            <strong class="stitch-num">${esc(inCart.q || '1')}</strong>
+                            <button type="button" class="btn g" data-cart-step-dec="${esc(inCart.id)}" aria-label="إنقاص كمية ${esc(entry.n)}">-</button>
+                          </div>`
+                        : `<button
+                            type="button"
+                            class="btn full"
+                            data-catalog-add="${esc(entry.n)}"
+                            data-catalog-cat="${esc(entry.c)}"
+                            data-catalog-q="${esc(entry.q || '')}"
+                            data-catalog-p="${Number(entry.p) || 0}"
+                          >➕ أضف للسلة</button>`
+                    }
+                  </article>`;
+              })
+              .join('')}
+          </div>
         </section>`;
     })
     .join('');
@@ -337,7 +345,7 @@ export function renderStoreModeView(appState) {
       return `
         <section class="card" data-store-cat="${esc(cat.id)}">
           <div class="ch">
-            <span>${esc(cat.i)} ${esc(cat.n)} (${catItems.length})</span>
+            <span><span class="badge-ok">ممر ${idx + 1}</span> ${esc(cat.i)} ${esc(cat.n)} (${catItems.length})</span>
             <span class="row">
               <button type="button" class="btn g" data-aisle-move="${esc(cat.id)}:-1" ${idx === 0 ? 'disabled' : ''} aria-label="تحريك الممر لأعلى">↑</button>
               <button type="button" class="btn g" data-aisle-move="${esc(cat.id)}:1" ${idx === cats.length - 1 ? 'disabled' : ''} aria-label="تحريك الممر لأسفل">↓</button>
@@ -346,13 +354,21 @@ export function renderStoreModeView(appState) {
           ${catItems
             .map(
               (item) => `
-                <div class="list-item" data-store-item="${esc(item.id)}">
-                  <button type="button" class="btn" data-store-check="${esc(item.id)}">
-                    ✅ التقطت: ${esc(item.n)} ${item.q ? `(${esc(item.q)})` : ''}
-                  </button>
+                <div class="instore-item-card" data-store-item="${esc(item.id)}">
                   <div class="row">
-                    <span class="mu">${Number(item.p) ? `${Number(item.p)} د.ل` : '—'}</span>
-                    <button type="button" class="btn g" data-store-defer="${esc(item.id)}">⏳ لا يوجد في المتجر</button>
+                    <div class="grow">
+                      <strong>${esc(item.n)}</strong>
+                      <div class="chips">
+                        ${item.q ? `<span class="chip">📦 ${esc(item.q)}</span>` : ''}
+                        <span class="chip">💰 ${Number(item.p) ? `${Number(item.p)} د.ل` : 'غير مسعّر'}</span>
+                      </div>
+                    </div>
+                    <button type="button" class="btn" data-store-check="${esc(item.id)}">
+                      ✅ التقطت
+                    </button>
+                  </div>
+                  <div class="row">
+                    <button type="button" class="btn g full" data-store-defer="${esc(item.id)}">⏳ لا يوجد في المتجر</button>
                   </div>
                 </div>`
             )
@@ -377,17 +393,37 @@ export function renderStoreModeView(appState) {
       </section>`
     : '';
 
+  const floatingCartBarHtml = `
+    <div class="floating-cart-bar" id="store-floating-cart-bar">
+      <div>
+        <strong>🛒 السلة الحالية: ${remaining.length} أصناف</strong>
+        <div class="header-sub">الإجمالي التقريبي: ${estTotal} د.ل</div>
+      </div>
+      <button type="button" class="btn" data-goto-tab="home">✅ طلب الاعتماد / عرض السلة</button>
+    </div>`;
+
   return `
     <section class="sec stack" id="store-catalog-header">
       <div class="row">
-        <h2>🏪 كتالوج المتجر الشامل للأسرة (${catalog.length} صنف)</h2>
+        <h2>🏪 متجر ومخزن العائلة (${catalog.length} صنف)</h2>
         <span class="badge-ok">متجدد تلقائياً</span>
       </div>
-      <p class="mu">تصفّح جميع احتياجات المنزل، المقاضي، قطع غيار وصيانة السيارة، صيانة الأثاث والأجهزة، وأضفها مباشرة إلى «🛒 السلة». أي غرض جديد تضيفه في السلة يُحفظ تلقائياً هنا في المتجر.</p>
-      <label class="field-box">
-        <span class="field-lbl">🔍 ابحث في أصناف ومهام المتجر</span>
-        <input id="store-search-inp" class="input" value="${esc(appState.storeSearchQuery || '')}" placeholder="مثلاً: زيت محرك، أثاث، حليب، غسيل..." />
-      </label>
+      <p class="mu">تصفّح جميع احتياجات المنزل، المقاضي، قطع غيار وصيانة السيارة، صيانة الأثاث والأجهزة، وأضفها مباشرة إلى «🛒 السلة».</p>
+      <div class="row">
+        <label class="field-box grow">
+          <span class="field-lbl">🔍 ابحث في أصناف ومهام المتجر</span>
+          <input id="store-search-inp" class="input" value="${esc(appState.storeSearchQuery || '')}" placeholder="مثلاً: زيت محرك، أثاث، حليب، غسيل..." />
+        </label>
+        <button type="button" id="store-voice-btn" class="btn g" aria-label="بحث صوتي في المتجر">🎙️</button>
+      </div>
+      <div class="pantry-alert-card stack" id="smart-pantry-alert">
+        <div class="row">
+          <strong>⚠️ تنبيه ذكي: نواقص المخزن الأساسية</strong>
+          <span class="badge-warn">3 أصناف</span>
+        </div>
+        <p class="mu">حليب كامل الدسم، خبز طازج، زيت زيتون بكر — أضفها كلها للسلة بضغطة واحدة.</p>
+        <button type="button" id="add-pantry-essentials-btn" class="btn full">🛒 إضافة كل النواقص الموصى بها للسلة</button>
+      </div>
       <div class="chips">
         <button type="button" class="btn ${catFilter === 'all' ? '' : 'g'}" data-store-cat-filter="all">📦 الكل (${catalog.length})</button>
         ${cats
@@ -405,23 +441,38 @@ export function renderStoreModeView(appState) {
 
     ${aiCardHtml}
     ${catalogSectionsHtml}
+    ${floatingCartBarHtml}
 
-    <section class="sec stack" id="quick-store-companion">
-      <div class="row">
-        <h3>🏃 رفيق التسوق السريع داخل المتجر (${remaining.length} في السلة)</h3>
-        <span class="${overBudget ? 'badge-warn' : nearBudget ? 'badge-warn' : 'badge-ok'}">
-          في العربة: ${paidTotal} د.ل ${budgetMonthly ? `/ ${budgetMonthly} د.ل` : ''}
-        </span>
-      </div>
-      <p class="mu">أثناء تواجدك في المتجر، اضغط على الغرض لتأكيد شرائه بيد واحدة أو «لا يوجد في المتجر» لتأجيله.</p>
-      <div class="chips">
-        <span class="chip">🛒 المتبقي: ${remaining.length}</span>
-        <span class="chip">✅ المنجز: ${doneItems.length}</span>
-        <span class="chip">⏳ مؤجّل: ${deferred.length}</span>
-        <span class="chip">💰 المتوقع: ${estTotal} د.ل</span>
+    <section class="instore-dark-panel ${appState.instoreHighContrast ? 'high-contrast' : ''}" id="quick-store-companion">
+      <div class="stack">
+        <div class="row">
+          <div>
+            <h3>🛒 وضع التسوق السريع بالمتجر (${remaining.length} في السلة)</h3>
+            <p class="mu">تم جمع ${doneItems.length} من ${allItems.length} صنفاً (${tripPct}%)</p>
+          </div>
+          <button type="button" id="instore-contrast-btn" class="btn g">
+            ${appState.instoreHighContrast ? '☀️ تباين قياسي' : '⚡ تباين عالٍ'}
+          </button>
+        </div>
+        <progress class="stitch-progress instore-progress" value="${Math.min(100, Math.max(0, Number(tripPct) || 0))}" max="100" aria-hidden="true"></progress>
+        <div class="chips">
+          <span class="chip">🛒 المتبقي: ${remaining.length}</span>
+          <span class="chip">✅ المنجز: ${doneItems.length}</span>
+          <span class="chip">⏳ مؤجّل: ${deferred.length}</span>
+          <span class="${overBudget ? 'badge-warn' : nearBudget ? 'badge-warn' : 'badge-ok'}">
+            في العربة: ${paidTotal} د.ل ${budgetMonthly ? `/ ${budgetMonthly} د.ل` : ''}
+          </span>
+        </div>
+        ${quickShoppingSectionsHtml || '<p class="mu">سلة التسوق السريع فارغة حالياً — اختر من أصناف المتجر أعلاه بضغطة واحدة.</p>'}
+        ${deferredHtml}
+        <div class="instore-checkout-bar" id="instore-checkout-bar">
+          <div class="row">
+            <span>المجموع الفعلي بالسلة: <strong class="stitch-num">${paidTotal} د.ل</strong></span>
+            <span>المتبقي من الميزانية: <strong class="stitch-num">${Math.max(0, budgetMonthly - paidTotal)} د.ل</strong></span>
+          </div>
+          <button type="button" id="finish-shopping-trip-btn" class="btn full">✅ إنهاء التسوق وحفظ الفاتورة</button>
+        </div>
       </div>
     </section>
-    ${quickShoppingSectionsHtml || '<section class="sec"><p class="mu">سلة التسوق السريع فارغة حالياً — اختر من أصناف المتجر أعلاه بضغطة واحدة.</p></section>'}
-    ${deferredHtml}
   `;
 }

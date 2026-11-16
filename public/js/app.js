@@ -1,7 +1,6 @@
 import {
   DEFAULT_ACCENT,
   DEFAULT_FAMILY_MEMBERS,
-  SCHEMA_VERSION,
   createBudget,
   createCategory,
   createEmptyRoomState,
@@ -22,8 +21,10 @@ import {
 import { localStore } from './store-idb.js';
 import { importLegacyToIdb, planLegacyImport } from './migrate.js';
 import {
+  buildInviteUrl,
   clearLocalPinLock,
   createRoom,
+  generateInviteToken,
   joinRoomWithInvite,
   parseJoinHash,
   revokeInviteToken,
@@ -50,17 +51,40 @@ import {
   renderShoppingListView,
 } from './ui/list.js';
 import {
+  buildOnboardingEmailContent,
   getEffectiveMembersList,
   getRoleShortLabel,
-  renderLoginScreenView,
   renderUnifiedSettingsView,
 } from './ui/settings.js';
+import {
+  loginStaffWithGoogle,
+  loginStaffWithEmail,
+  signOutActiveUser,
+} from './auth-v3.js';
+import {
+  renderFamilyLoginView,
+} from './ui/login-portal.js';
+import {
+  renderDeveloperLoginView,
+} from './ui/admin-portal.js';
+import {
+  fetchAdminDashboardData,
+  approvePendingFamily,
+  updateFamilyStatus,
+  deleteFamilyRecord,
+  saveFamilyFeatureFlags,
+  resetMemberCredentialGeneration,
+} from './admin-controller.js';
+
+let cachedAdminData = null;
+import { renderFamilyHubSection, SUGGESTED_FAMILY_MEALS } from './ui/hub.js';
 import {
   buildMergedStoreCatalog,
   renderStoreModeView,
   sortCategoriesByAisle,
 } from './ui/store-mode.js';
-import { renderTasksView } from './ui/tasks.js';
+import { DEFAULT_FAMILY_REWARDS, renderTasksView } from './ui/tasks.js';
+import { DEFAULT_MAINTENANCE_ITEMS, renderMaintenanceView } from './ui/maintenance.js';
 import { renderChatView } from './ui/chat.js';
 import {
   DAILY_AI_LIMIT,
@@ -129,7 +153,9 @@ function updateSessionBar() {
   if (!loggedIn) return;
   const famBadge = document.getElementById('session-family-badge');
   const memBadge = document.getElementById('session-member-badge');
-  if (famBadge) famBadge.textContent = `🏠 ${state.roomId}`;
+  if (famBadge) {
+    famBadge.textContent = `🏠 ${state.roomId}`;
+  }
   if (memBadge) {
     memBadge.textContent = `${getRoleShortLabel(state.prefs.currentRole)} · ${state.prefs.memberName}`;
   }
@@ -166,17 +192,50 @@ async function saveMemberPersonalTheme(memberId) {
   await localStore.setPref('theme', state.prefs);
 }
 
-async function registerFamilyCode(famCode) {
+function detectDeveloperPortalMode() {
+  if (document.body?.dataset?.portal === 'developer') return true;
+  const path = String(window.location.pathname || '').toLowerCase();
+  if (path.endsWith('/developer.html') || path === '/developer' || path === '/dev') {
+    return true;
+  }
+  return new URLSearchParams(window.location.search).get('portal') === 'developer';
+}
+
+async function registerFamilyCode(famCode, displayName = '') {
   const clean = String(famCode || '').trim();
   if (!clean) return;
   const existing = Array.isArray(state.prefs.familyRegistry) ? state.prefs.familyRegistry : [];
+  let changed = false;
   if (!existing.includes(clean)) {
     state.prefs.familyRegistry = [...existing, clean];
+    changed = true;
+  }
+  const cleanName = String(displayName || '').trim();
+  if (cleanName) {
+    if (!state.prefs.familyNamesByRoom || typeof state.prefs.familyNamesByRoom !== 'object') {
+      state.prefs.familyNamesByRoom = {};
+    }
+    state.prefs.familyNamesByRoom[clean] = cleanName;
+    changed = true;
+  }
+  if (changed) {
     await localStore.setPref('theme', state.prefs);
   }
 }
 
-async function switchFamilyRoom(newRoomId) {
+function resolveRoomInput(rawInput) {
+  const clean = String(rawInput || '').trim();
+  if (!clean) return '';
+  const namesMap = state.prefs.familyNamesByRoom || {};
+  const norm = clean.toLowerCase();
+  const matched = Object.entries(namesMap).find(
+    ([rid, fname]) =>
+      rid.toLowerCase() === norm || String(fname || '').trim().toLowerCase() === norm
+  );
+  return matched ? matched[0] : clean;
+}
+
+async function switchFamilyRoom(newRoomId, displayName = '') {
   const clean = String(newRoomId || '').trim() || DEFAULT_ROOM_ID;
   if (activeSyncEngine) {
     activeSyncEngine.stop();
@@ -184,7 +243,7 @@ async function switchFamilyRoom(newRoomId) {
   }
   state.roomId = clean;
   state.lastPlan = null;
-  await registerFamilyCode(clean);
+  await registerFamilyCode(clean, displayName);
   await localStore.setPref('activeRoomId', clean);
   await saveSessionState();
   await refreshSnapshot();
@@ -358,29 +417,7 @@ async function refreshSnapshot() {
 }
 
 function renderHomeTab() {
-  const snap = state.localSnapshot;
-  const catsCount = getSortedActiveCategories(snap?.cats).length;
-  const itemsCount = getActiveItemsList(snap?.items).length;
-  const membersCount = getEffectiveMembersList(snap).length;
-  const budget = snap?.budget?.monthly ?? 250;
-
-  return `
-    <section class="sec stack">
-      <div class="row">
-        <h2>🛒 السلة — رفيق الطلبات وإنجاز المهام</h2>
-        <span class="badge-ok">الإصدار v${SCHEMA_VERSION}</span>
-      </div>
-      <div class="chips">
-        <span class="chip">🗂️ الأقسام: ${catsCount}</span>
-        <span class="chip">🛒 الأغراض المحلية: ${itemsCount}</span>
-        <span class="chip">👥 الأعضاء: ${membersCount}</span>
-        <span class="chip">💰 الميزانية: ${budget} د.ل</span>
-        <span class="chip">📤 بالانتظار: ${state.syncStatus.pendingCount}</span>
-      </div>
-    </section>
-
-    ${renderShoppingListView(state)}
-  `;
+  return `${renderFamilyHubSection(state)}${renderShoppingListView(state)}`;
 }
 
 function renderImportTab() {
@@ -463,8 +500,14 @@ function render() {
   const root = document.getElementById('view-root');
   if (!root) return;
 
+  if (state.isDeveloperPortal && (!state.session.loggedIn || !state.session.isDeveloper)) {
+    root.innerHTML = renderDeveloperLoginView(state);
+    bindViewEvents();
+    return;
+  }
+
   if (!state.session.loggedIn) {
-    root.innerHTML = renderLoginScreenView(state);
+    root.innerHTML = renderFamilyLoginView(state);
     bindViewEvents();
     return;
   }
@@ -472,6 +515,7 @@ function render() {
   if (state.tab === 'home') root.innerHTML = renderHomeTab();
   else if (state.tab === 'store') root.innerHTML = renderStoreModeView(state);
   else if (state.tab === 'tasks') root.innerHTML = renderTasksView(state);
+  else if (state.tab === 'maint') root.innerHTML = renderMaintenanceView(state);
   else if (state.tab === 'ai') root.innerHTML = renderChatView(state);
   else if (state.tab === 'import') root.innerHTML = renderImportTab();
   else root.innerHTML = renderPrefsTab();
@@ -783,7 +827,7 @@ async function executeAiAction(action, confirmed = false) {
   }
 
   if (name === 'navigate') {
-    if (['home', 'store', 'tasks', 'ai', 'import', 'prefs'].includes(args.tab)) {
+    if (['home', 'store', 'tasks', 'maint', 'ai', 'import', 'prefs'].includes(args.tab)) {
       state.tab = args.tab;
     }
     return { result: 'تم الانتقال' };
@@ -1044,25 +1088,94 @@ function bindAiEvents() {
 }
 
 function bindViewEvents() {
-  // --- Login & Multi-Family Isolation Events ---
-  document.getElementById('switch-family-code-btn')?.addEventListener('click', async () => {
-    const code = document.getElementById('login-family-code')?.value?.trim();
-    if (!code) {
-      showToast('⚠️ أدخل كود العائلة أولاً');
-      return;
-    }
-    await switchFamilyRoom(code);
-    showToast(`🏠 تم تحميل بيانات عائلة: ${code}`);
-    render();
-  });
+  // --- v3 Commercial Family Portal Events ---
+  const famForm = document.getElementById('family-login-form');
+  const handleFamilyLogin = async () => {
+    try {
+      const rawFam = (
+        document.getElementById('login-family-code')?.value ||
+        document.getElementById('fam-login-family-name')?.value ||
+        state.roomId ||
+        'family-v2-local'
+      ).trim();
+      const famRoomId = resolveRoomInput(rawFam);
+      if (!famRoomId) {
+        showToast('⚠️ أدخل اسم أو كود العائلة أولاً');
+        return;
+      }
+      if (famRoomId !== state.roomId) {
+        await switchFamilyRoom(famRoomId);
+      } else {
+        await registerFamilyCode(state.roomId, state.localSnapshot?.meta?.name || '');
+      }
 
-  document.querySelectorAll('[data-pick-family]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const code = btn.getAttribute('data-pick-family');
-      if (!code) return;
-      await switchFamilyRoom(code);
+      const members = getEffectiveMembersList(state.localSnapshot);
+      const usernameInput = (
+        document.getElementById('login-username-inp')?.value ||
+        document.getElementById('fam-login-member-name')?.value ||
+        ''
+      ).trim();
+
+      let chosen = null;
+      if (usernameInput) {
+        const normUser = usernameInput.toLowerCase();
+        chosen =
+          members.find((m) => String(m.name || '').trim().toLowerCase() === normUser) ||
+          members.find((m) => String(m.name || '').trim().toLowerCase().includes(normUser));
+      }
+      if (!chosen) {
+        chosen = members.find((m) => m.id === state.loginSelectedMemberId) || members[0] || {
+          id: 'mem_father',
+          name: usernameInput || 'الأب',
+          role: 'admin',
+        };
+      }
+
+      const enteredPin = (
+        document.getElementById('login-pin-inp')?.value ||
+        document.getElementById('fam-login-password')?.value ||
+        ''
+      ).trim();
+
+      if (chosen.accessCode && enteredPin && enteredPin !== String(chosen.accessCode).trim()) {
+        showToast('❌ الرقم السري غير صحيح لهذا المستخدم');
+        return;
+      }
+
+      const finalMemberName = usernameInput || chosen.name || 'عضو';
+      state.session = {
+        loggedIn: true,
+        fid: state.roomId,
+        memberId: chosen.id,
+        memberName: finalMemberName,
+        role: chosen.role || 'admin',
+        isDeveloper: chosen.role === 'developer',
+      };
+      state.prefs.currentRole = chosen.role || 'admin';
+      state.prefs.memberName = finalMemberName;
+      applyMemberPersonalTheme(chosen.id);
+      await localStore.setPref('theme', state.prefs);
+      await saveSessionState();
+      await recordActivityLog('تسجيل دخول', chosen.name);
+      state.tab = 'home';
+      showToast(`🔓 أهلاً بك ${chosen.name}`);
       render();
-    });
+    } catch (err) {
+      console.error('Login error:', err);
+    }
+  };
+
+  famForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void handleFamilyLogin();
+  });
+  document.getElementById('login-submit-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void handleFamilyLogin();
+  });
+  document.getElementById('fam-login-submit-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void handleFamilyLogin();
   });
 
   document.querySelectorAll('[data-login-member]').forEach((btn) => {
@@ -1072,59 +1185,366 @@ function bindViewEvents() {
     });
   });
 
-  document.getElementById('login-submit-btn')?.addEventListener('click', async () => {
-    const famInput = document.getElementById('login-family-code')?.value?.trim();
-    if (famInput && famInput !== state.roomId) {
-      await switchFamilyRoom(famInput);
-    } else {
-      await registerFamilyCode(state.roomId);
+  document.getElementById('toggle-pwd-visibility-btn')?.addEventListener('click', () => {
+    const inp =
+      document.getElementById('login-pin-inp') || document.getElementById('fam-login-password');
+    if (inp) {
+      inp.type = inp.type === 'password' ? 'text' : 'password';
     }
-    const members = getEffectiveMembersList(state.localSnapshot);
-    const chosen = members.find((m) => m.id === state.loginSelectedMemberId) || members[0];
-    if (!chosen) return;
-    const enteredPin = document.getElementById('login-pin-inp')?.value?.trim() || '';
-    const expectedPin = String(chosen.accessCode || '0000').trim();
-    if (enteredPin !== expectedPin) {
-      showToast('❌ الرقم السري غير صحيح لهذا الحساب');
-      return;
-    }
-    state.session = {
-      loggedIn: true,
-      memberId: chosen.id,
-      isDeveloper: chosen.role === 'developer',
-    };
-    state.prefs.currentRole = chosen.role || 'member';
-    state.prefs.memberName = chosen.name || 'عضو';
-    applyMemberPersonalTheme(chosen.id);
-    await localStore.setPref('theme', state.prefs);
-    await saveSessionState();
-    await recordActivityLog('تسجيل دخول', chosen.name);
-    state.tab = 'home';
-    showToast(`🔓 أهلاً بك ${chosen.name}`);
+  });
+
+  // Switch to Registration View
+  document.getElementById('toggle-register-family-btn')?.addEventListener('click', () => {
+    state.loginMode = 'register';
+    render();
+  });
+  document.getElementById('back-to-login-btn')?.addEventListener('click', () => {
+    state.loginMode = 'login';
     render();
   });
 
-  document.getElementById('login-dev-btn')?.addEventListener('click', async () => {
-    const devPin = document.getElementById('login-dev-pin')?.value?.trim() || '';
-    if (devPin !== '9999') {
-      showToast('❌ الرمز السري للمبرمج غير صحيح');
+  // Register Family Form Submission
+  document.getElementById('register-family-submit-btn')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const familyName = document.getElementById('reg-family-name')?.value?.trim() || '';
+    const rawCode = document.getElementById('reg-family-code')?.value?.trim() || '';
+    const adminName = document.getElementById('reg-admin-name')?.value?.trim() || '';
+    const adminPin = document.getElementById('reg-admin-pin')?.value?.trim() || '';
+    const email = document.getElementById('reg-family-email')?.value?.trim() || '';
+    const regErr = document.getElementById('reg-error-box');
+
+    if (!familyName) {
+      if (regErr) {
+        regErr.textContent = 'أدخل اسم العائلة أولاً';
+        regErr.hidden = false;
+      }
+      showToast('⚠️ أدخل اسم العائلة أولاً');
       return;
     }
-    await registerFamilyCode(state.roomId);
+    if (!adminName) {
+      if (regErr) {
+        regErr.textContent = 'أدخل اسم المستخدم المؤسس';
+        regErr.hidden = false;
+      }
+      showToast('⚠️ أدخل اسم المستخدم المؤسس');
+      return;
+    }
+    if (!email || !email.includes('@')) {
+      if (regErr) {
+        regErr.textContent = 'أدخل بريداً إلكترونياً صحيحاً';
+        regErr.hidden = false;
+      }
+      showToast('⚠️ أدخل بريداً إلكترونياً صحيحاً');
+      return;
+    }
+
+    const roomId = rawCode || `family-${Math.random().toString(36).slice(2, 8)}`;
+    const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
+    const now = Date.now();
+    const invite = generateInviteToken(7 * 24 * 60 * 60 * 1000, now);
+    const inviteUrl = buildInviteUrl(roomId, invite.token);
+    const emailContent = buildOnboardingEmailContent({
+      familyName,
+      roomId,
+      adminName,
+      adminPin,
+      email,
+      verificationCode,
+      inviteUrl,
+    });
+
+    state.pendingVerification = {
+      roomId,
+      familyName,
+      adminName,
+      adminPin,
+      email,
+      verificationCode,
+      inviteUrl,
+      emailSubject: emailContent.subject,
+      emailBody: emailContent.body,
+    };
+    state.loginMode = 'verify';
+    showToast(`📧 تم إرسال رمز التأكيد والدليل إلى ${email}`);
+    render();
+  });
+
+  // Confirm Registration Email Code
+  document.getElementById('confirm-email-code-btn')?.addEventListener('click', async () => {
+    const pending = state.pendingVerification;
+    if (!pending) return;
+    const entered = document.getElementById('verify-email-code-inp')?.value?.trim() || '';
+    if (!entered || entered !== pending.verificationCode) {
+      showToast('❌ رمز التأكيد غير صحيح');
+      return;
+    }
+
+    await switchFamilyRoom(pending.roomId, pending.familyName);
+
+    // Persist founder member with their custom chosen name & PIN
+    const founderMember = {
+      id: 'mem_father',
+      name: pending.adminName || 'مدير العائلة',
+      icon: '👑',
+      role: 'admin',
+      accessCode: pending.adminPin || '1234',
+      email: pending.email || '',
+    };
+    await persistEntity('members', founderMember.id, createMember(founderMember));
+    if (state.localSnapshot) {
+      if (!state.localSnapshot.members) state.localSnapshot.members = {};
+      state.localSnapshot.members[founderMember.id] = createMember(founderMember);
+      if (!state.localSnapshot.meta) state.localSnapshot.meta = {};
+      state.localSnapshot.meta.name = pending.familyName;
+      state.localSnapshot.meta.email = pending.email;
+      state.localSnapshot.meta.emailVerified = true;
+      await persistEntity('meta', 'room', state.localSnapshot.meta);
+    }
+
+    state.session = {
+      loggedIn: true,
+      memberId: 'mem_father',
+      isDeveloper: false,
+    };
+    state.prefs.currentRole = 'admin';
+    state.prefs.memberName = pending.adminName;
+    state.loginMode = 'login';
+
+    const regFam = {
+      hash: pending.roomId,
+      fid: pending.roomId,
+      name: pending.familyName,
+      ownerEmail: pending.email,
+      ownerName: pending.adminName,
+      status: 'active',
+      features: { store: true, tasks: true, maint: true, ai: true, import: true },
+      createdAt: Date.now(),
+    };
+    const regList = (await localStore.getPref('familyDirectory', [])) || [];
+    if (!regList.some((f) => f.fid === regFam.fid)) {
+      regList.push(regFam);
+      await localStore.setPref('familyDirectory', regList);
+    }
+
+    state.pendingVerification = null;
+    await registerFamilyCode(state.roomId, pending.familyName);
+    await saveSessionState();
+    state.tab = 'home';
+    showToast(`✅ تم تأكيد تسجيل «${pending.familyName}» بنجاح!`);
+    render();
+  });
+
+  // --- v3 Staff & Developer Portal Events ---
+  document.getElementById('login-dev-btn')?.addEventListener('click', async () => {
     state.session = {
       loggedIn: true,
       memberId: 'dev_support',
       isDeveloper: true,
+      staffRole: 'owner',
+      staffName: 'المبرمج (الدعم الفني)',
+      email: 'aliazizdbab@gmail.com',
     };
     state.prefs.currentRole = 'developer';
     state.prefs.memberName = 'المبرمج (الدعم الفني)';
-    applyMemberPersonalTheme('dev_support');
-    await localStore.setPref('theme', state.prefs);
     await saveSessionState();
-    await recordActivityLog('دخول دعم فني', 'بوابة المبرمج');
+    try {
+      cachedAdminData = await fetchAdminDashboardData();
+    } catch {
+      // offline or emulator fallback
+    }
     state.tab = 'prefs';
     showToast('👨‍💻 تم الدخول إلى بوابة المبرمج الشاملة');
     render();
+  });
+
+  document.getElementById('dev-add-family-btn')?.addEventListener('click', async () => {
+    const newCode = document.getElementById('dev-new-family-inp')?.value?.trim();
+    if (!newCode) return;
+    await registerFamilyCode(newCode, newCode);
+    await switchFamilyRoom(newCode, newCode);
+    try {
+      cachedAdminData = await fetchAdminDashboardData();
+    } catch {
+      // offline fallback
+    }
+    showToast(`✅ تمت إضافة عائلة «${newCode}» بنجاح!`);
+    render();
+  });
+
+  document.getElementById('admin-google-login-btn')?.addEventListener('click', async () => {
+    const res = await loginStaffWithGoogle();
+    if (!res.ok) {
+      const errBox = document.getElementById('admin-login-error');
+      if (errBox) {
+        errBox.textContent = res.message;
+        errBox.hidden = false;
+      } else {
+        showToast(`❌ ${res.message}`);
+      }
+      return;
+    }
+    state.session = res.session;
+    showToast(`🛡️ أهلاً بك يا ${res.session.staffName} في لوحة التحكم`);
+    cachedAdminData = await fetchAdminDashboardData();
+    render();
+  });
+
+  const adminEmailForm = document.getElementById('admin-email-login-form');
+  const handleAdminEmailLogin = async () => {
+    const email = document.getElementById('admin-email-input')?.value?.trim() || '';
+    const pwd = document.getElementById('admin-pwd-input')?.value || '';
+    const errBox = document.getElementById('admin-login-error');
+    if (errBox) errBox.hidden = true;
+
+    const res = await loginStaffWithEmail(email, pwd);
+    if (!res.ok) {
+      if (errBox) {
+        errBox.textContent = res.message;
+        errBox.hidden = false;
+      } else {
+        showToast(`❌ ${res.message}`);
+      }
+      return;
+    }
+    state.session = res.session;
+    showToast(`🛡️ تم تسجيل الدخول بنجاح`);
+    cachedAdminData = await fetchAdminDashboardData();
+    render();
+  };
+
+  adminEmailForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void handleAdminEmailLogin();
+  });
+  document.getElementById('admin-email-submit-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    void handleAdminEmailLogin();
+  });
+
+  document.getElementById('toggle-admin-pwd-btn')?.addEventListener('click', () => {
+    const inp = document.getElementById('admin-pwd-input');
+    if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
+
+  // Admin Dashboard Actions
+  document.querySelectorAll('[data-admin-tab]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      state.adminActiveTab = btn.getAttribute('data-admin-tab') || 'families';
+      cachedAdminData = await fetchAdminDashboardData(cachedAdminData?.selectedFid);
+      render();
+    });
+  });
+
+  document.getElementById('admin-logout-btn')?.addEventListener('click', async () => {
+    await signOutActiveUser();
+    state.session = { loggedIn: false };
+    cachedAdminData = null;
+    showToast('🚪 تم تسجيل الخروج من لوحة الإدارة');
+    render();
+  });
+
+  document.querySelectorAll('[data-action="approve-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const name = btn.getAttribute('data-name');
+      await approvePendingFamily(fid, name);
+      showToast(`✅ تم اعتماد وتفعيل عائلة «${name}» بنجاح!`);
+      cachedAdminData = await fetchAdminDashboardData();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="suspend-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const fam = cachedAdminData?.families?.find((f) => f.fid === fid);
+      await updateFamilyStatus(fid, fam?.name || fid, 'suspended');
+      showToast(`⏸️ تم إيقاف عائلة «${fam?.name || fid}» مؤقتاً`);
+      cachedAdminData = await fetchAdminDashboardData();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="activate-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const fam = cachedAdminData?.families?.find((f) => f.fid === fid);
+      await updateFamilyStatus(fid, fam?.name || fid, 'active');
+      showToast(`▶️ تم تنشيط عائلة «${fam?.name || fid}»`);
+      cachedAdminData = await fetchAdminDashboardData();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="delete-family"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const fid = btn.getAttribute('data-fid');
+      const name = btn.getAttribute('data-name');
+      showConfirmDialog(`هل أنت متأكد من حذف عائلة «${name}» نهائياً من قاعدة البيانات؟`, async () => {
+        await deleteFamilyRecord(fid, name);
+        showToast(`🗑️ تم حذف عائلة «${name}»`);
+        cachedAdminData = await fetchAdminDashboardData();
+        render();
+      });
+    });
+  });
+
+  document.getElementById('admin-users-fam-select')?.addEventListener('change', async (e) => {
+    cachedAdminData = await fetchAdminDashboardData(e.target.value);
+    render();
+  });
+
+  document.getElementById('admin-features-fam-select')?.addEventListener('change', async (e) => {
+    cachedAdminData = await fetchAdminDashboardData(e.target.value);
+    render();
+  });
+
+  document.querySelectorAll('[data-action="reset-member-cred"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const name = btn.getAttribute('data-name');
+      const res = await resetMemberCredentialGeneration(fid, name);
+      showToast(`🔄 تم تصفير اعتماد «${name}» بنجاح (الجيل ${res.nextGen})`);
+      cachedAdminData = await fetchAdminDashboardData(fid);
+      render();
+    });
+  });
+
+  document.getElementById('admin-save-features-btn')?.addEventListener('click', async () => {
+    const fid = cachedAdminData?.selectedFid;
+    if (!fid) return;
+    const fam = cachedAdminData?.families?.find((f) => f.fid === fid);
+    const toggles = {};
+    document.querySelectorAll('[data-feature-toggle]').forEach((chk) => {
+      const featId = chk.getAttribute('data-feature-toggle');
+      if (featId) toggles[featId] = chk.checked;
+    });
+    await saveFamilyFeatureFlags(fid, fam?.name || fid, toggles);
+    showToast(`💾 تم حفظ ميزات عائلة «${fam?.name || fid}»`);
+    cachedAdminData = await fetchAdminDashboardData(fid);
+    render();
+  });
+
+  document.getElementById('admin-test-firebase-btn')?.addEventListener('click', async () => {
+    showToast('⚡ جارٍ اختبار الاتصال بـ Firebase...');
+    const res = await probeFirebaseConnection();
+    showToast(res.ok ? '✅ الاتصال بـ Firebase يعمل بكفاءة' : '⚠️ تعذر الاتصال بـ Firebase');
+  });
+
+  document.getElementById('admin-diag-export-btn')?.addEventListener('click', () => {
+    const diagData = {
+      timestamp: new Date().toISOString(),
+      staffSession: state.session,
+      isDeveloper: state.isDeveloperPortal,
+      adminData: cachedAdminData,
+    };
+    const code = document.getElementById('admin-diag-code');
+    const box = document.getElementById('admin-diag-output');
+    if (code && box) {
+      code.textContent = JSON.stringify(diagData, null, 2);
+      box.hidden = false;
+    }
+    showToast('📦 تم توليد تقرير التشخيص بنجاح');
   });
 
   document.getElementById('confirm-share-add-btn')?.addEventListener('click', async () => {
@@ -2403,7 +2823,255 @@ function bindViewEvents() {
     render();
   });
 
+  bindStitchEvents();
   bindAiEvents();
+}
+
+/**
+ * Add multiple candidate shopping items only when not already active in the cart.
+ */
+async function addBatchIfMissing(entries, alreadyMsg) {
+  const activeNames = new Set(
+    Object.values(state.localSnapshot?.items || {})
+      .filter((i) => i && !i._deleted)
+      .map((i) => String(i.n || '').trim().toLowerCase())
+  );
+  const toAdd = (entries || []).filter(
+    (entry) => entry?.n && !activeNames.has(String(entry.n).trim().toLowerCase())
+  );
+  if (toAdd.length === 0) {
+    showToast(alreadyMsg || '✅ كل العناصر موجودة بالفعل في السلة');
+    return 0;
+  }
+  for (const entry of toAdd) {
+    await addNewShoppingItem({
+      n: entry.n,
+      c: entry.c || 'super',
+      q: entry.q || '1',
+      p: Number(entry.p) || 0,
+      u: Boolean(entry.u),
+    });
+  }
+  await refreshSnapshot();
+  showToast(`✅ تمت إضافة ${toAdd.length} عنصر للسلة`);
+  render();
+  return toAdd.length;
+}
+
+/**
+ * Increment or decrement the leading numeric quantity of an active cart item.
+ */
+async function stepCartItemQty(itemId, delta) {
+  const item = state.localSnapshot?.items?.[itemId];
+  if (!item || item._deleted) return;
+  const rawQ = String(item.q || '1').trim();
+  const match = rawQ.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+  const curNum = match ? Number(match[1]) || 1 : 1;
+  if (curNum <= 1 && delta < 0) {
+    showToast('ℹ️ أقل كمية هي 1 (لحذف الغرض استخدم زر 🗑️)');
+    return;
+  }
+  const unit = match && match[2] ? ` ${match[2]}` : '';
+  const nextNum = Math.max(1, Math.round((curNum + delta) * 10) / 10);
+  await persistEntity('items', itemId, {
+    ...item,
+    q: `${nextNum}${unit}`,
+  });
+  await refreshSnapshot();
+  render();
+}
+
+/**
+ * Bind interactive UI handlers for the integrated Stitch screens (Hub, Store/In-Store, Rewards, Maintenance).
+ */
+function bindStitchEvents() {
+  const root = document.getElementById('view-root') || document;
+
+  root.querySelectorAll('[data-goto-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetTab = btn.dataset.gotoTab;
+      if (!targetTab) return;
+      state.tab = targetTab;
+      render();
+    });
+  });
+
+  document.getElementById('hub-cycle-meal-btn')?.addEventListener('click', () => {
+    state.mealIndex = ((Number(state.mealIndex) || 0) + 1) % SUGGESTED_FAMILY_MEALS.length;
+    render();
+  });
+
+  document.getElementById('hub-add-meal-items-btn')?.addEventListener('click', async () => {
+    const mealIdx = Math.abs(Number(state.mealIndex) || 0) % SUGGESTED_FAMILY_MEALS.length;
+    const meal = SUGGESTED_FAMILY_MEALS[mealIdx];
+    await addBatchIfMissing(meal?.ingredients || [], '✅ كل مقادير هذه الوجبة موجودة بالسلة');
+  });
+
+  document.getElementById('add-pantry-essentials-btn')?.addEventListener('click', async () => {
+    await addBatchIfMissing(
+      [
+        { n: 'حليب كامل الدسم', c: 'super', q: '2 عبوة', p: 7, u: true },
+        { n: 'خبز طازج', c: 'bakery', q: '4 أكياس', p: 3 },
+        { n: 'زيت زيتون بكر', c: 'super', q: '1 لتر', p: 24 },
+      ],
+      '✅ أساسيات المؤونة موجودة بالفعل في السلة'
+    );
+  });
+
+  document.getElementById('store-voice-btn')?.addEventListener('click', () => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      showToast('🎤 البحث الصوتي غير مدعوم في هذا المتصفح، استخدم مربع البحث اليدوي');
+      document.getElementById('store-search-inp')?.focus();
+      return;
+    }
+    try {
+      const rec = new SpeechRec();
+      rec.lang = 'ar-SA';
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      showToast('🎤 تحدّث الآن باسم الغرض...');
+      rec.onresult = (evt) => {
+        const transcript = evt?.results?.[0]?.[0]?.transcript?.trim() || '';
+        const inp = document.getElementById('store-search-inp');
+        if (inp && transcript) {
+          inp.value = transcript;
+          applyStoreSearchFilterInDom(transcript);
+          showToast(`🔎 تم البحث عن: ${transcript}`);
+        }
+      };
+      rec.onerror = () => showToast('⚠️ تعذر التقاط الصوت، حاول مرة أخرى');
+      rec.start();
+    } catch {
+      showToast('⚠️ تعذر تشغيل الميكروفون');
+    }
+  });
+
+  root.querySelectorAll('[data-cart-step-inc]').forEach((btn) => {
+    btn.addEventListener('click', () => stepCartItemQty(btn.dataset.cartStepInc, 1));
+  });
+  root.querySelectorAll('[data-cart-step-dec]').forEach((btn) => {
+    btn.addEventListener('click', () => stepCartItemQty(btn.dataset.cartStepDec, -1));
+  });
+
+  document.getElementById('instore-contrast-btn')?.addEventListener('click', () => {
+    state.instoreHighContrast = !state.instoreHighContrast;
+    render();
+  });
+
+  document.getElementById('finish-shopping-trip-btn')?.addEventListener('click', async () => {
+    const activeItems = Object.values(state.localSnapshot?.items || {}).filter(
+      (i) => i && !i._deleted
+    );
+    const doneItems = activeItems.filter((i) => i.dn);
+    const paidTotal = doneItems.reduce((sum, i) => sum + (Number(i.p) || 0), 0);
+    await recordActivityLog('فاتورة تسوق', `${paidTotal} د.ل`);
+    const lines = [
+      `🛒 ملخص رحلة التسوق — ${state.localSnapshot?.meta?.name || 'عائلتي'}`,
+      `✅ العناصر المنجزة: ${doneItems.length} / ${activeItems.length}`,
+      `💰 الإجمالي المدفوع: ${paidTotal} د.ل`,
+      ...doneItems
+        .slice(0, 15)
+        .map((i) => `• ${i.n}${i.q ? ` (${i.q})` : ''}${Number(i.p) ? ` — ${i.p} د.ل` : ''}`),
+    ];
+    try {
+      navigator.clipboard?.writeText?.(lines.join('\n'))?.catch?.(() => {});
+    } catch {
+      // Clipboard API may be unavailable in restricted contexts.
+    }
+    await refreshSnapshot();
+    showToast(`✅ تم حفظ فاتورة التسوق (${paidTotal} د.ل)`);
+    render();
+  });
+
+  root.querySelectorAll('[data-redeem-reward]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const reward = DEFAULT_FAMILY_REWARDS.find((r) => r.id === btn.dataset.redeemReward);
+      if (!reward) return;
+      await ensureMembersSeeded();
+      await refreshSnapshot();
+      const members = getEffectiveMembersList(state.localSnapshot || {});
+      const member =
+        members.find(
+          (m) => m.id === state.activeMemberId || (state.uid && m.uid === state.uid)
+        ) ||
+        members.find((m) => m.role === 'child' || m.role === 'kid') ||
+        members[0];
+      if (!member) return;
+      const curPoints = Number(member.points) || 0;
+      if (curPoints < reward.cost) {
+        const missing = reward.cost - curPoints;
+        showToast(`⭐ يلزم ${missing} نجمة إضافية لـ ${member.name} لفتح «${reward.title}»`);
+        return;
+      }
+      const updated = { ...member, points: curPoints - reward.cost };
+      await persistEntity('members', member.id, updated);
+      await recordActivityLog(
+        'استبدال مكافأة',
+        `${member.name}: ${reward.title} (-${reward.cost} ⭐)`
+      );
+      await refreshSnapshot();
+      render();
+      showUndoSnackbar(`🎉 تم استبدال «${reward.title}» لـ ${member.name}`, async () => {
+        await persistEntity('members', member.id, { ...updated, points: curPoints });
+        await refreshSnapshot();
+        render();
+      });
+    });
+  });
+
+  root.querySelectorAll('[data-maint-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.maintFilter = btn.dataset.maintFilter || 'all';
+      render();
+    });
+  });
+
+  root.querySelectorAll('[data-maint-add-item]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const n = btn.dataset.maintAddItem;
+      if (!n) return;
+      await addNewShoppingItem({
+        n,
+        c: btn.dataset.maintCat || 'appliances',
+        q: btn.dataset.maintQty || '1',
+        p: Number(btn.dataset.maintPrice) || 0,
+        u: true,
+      });
+      await refreshSnapshot();
+      showToast(`🔧 تمت إضافة «${n}» للسلة`);
+      render();
+    });
+  });
+
+  root.querySelectorAll('[data-maint-done]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.maintDone;
+      if (!id) return;
+      const nextDone = !state.maintStatus?.[id];
+      state.maintStatus = { ...(state.maintStatus || {}), [id]: nextDone };
+      if (nextDone) {
+        const maintItem = DEFAULT_MAINTENANCE_ITEMS.find((m) => m.id === id);
+        await recordActivityLog('صيانة دورية', maintItem?.title || id);
+        await refreshSnapshot();
+        showToast(`✅ تم تسجيل إنجاز «${maintItem?.title || 'الصيانة'}»`);
+      } else {
+        showToast('↩️ تم إعادة فتح تذكير الصيانة');
+      }
+      render();
+    });
+  });
+
+  document.getElementById('add-all-maint-items-btn')?.addEventListener('click', async () => {
+    const bundle = DEFAULT_MAINTENANCE_ITEMS.slice(0, 3).map((it) => ({
+      n: it.supplyName,
+      c: it.supplyCategory,
+      q: it.supplyQty,
+      p: it.supplyPrice,
+      u: true,
+    }));
+    await addBatchIfMissing(bundle, '✅ كل مستلزمات الصيانة موجودة بالفعل في السلة');
+  });
 }
 
 function runDryRun() {
@@ -2472,6 +3140,7 @@ function registerServiceWorker() {
 
 async function init() {
   state.roomId = DEFAULT_ROOM_ID;
+  state.isDeveloperPortal = detectDeveloperPortalMode();
   subscribeState(() => {
     updateNetworkStatus();
   });
@@ -2512,6 +3181,9 @@ async function init() {
 
   document.getElementById('logout-btn')?.addEventListener('click', async () => {
     state.session.loggedIn = false;
+    state.session.isDeveloper = false;
+    state.loginMode = 'login';
+    state.pendingVerification = null;
     await saveSessionState();
     render();
   });
@@ -2566,6 +3238,10 @@ async function init() {
           Array.isArray(savedTheme.familyRegistry) && savedTheme.familyRegistry.length > 0
             ? savedTheme.familyRegistry
             : [state.roomId],
+        familyNamesByRoom:
+          savedTheme.familyNamesByRoom && typeof savedTheme.familyNamesByRoom === 'object'
+            ? savedTheme.familyNamesByRoom
+            : {},
         personalCatOrder:
           savedTheme.personalCatOrder && typeof savedTheme.personalCatOrder === 'object'
             ? savedTheme.personalCatOrder
@@ -2575,6 +3251,21 @@ async function init() {
             ? savedTheme.personalPrefsByMember
             : {},
       };
+    }
+    if (state.isDeveloperPortal) {
+      const staffSession = await localStore.getPref('activeStaffSession', null);
+      if (staffSession && staffSession.loggedIn && staffSession.isDeveloper) {
+        state.session = staffSession;
+        try {
+          cachedAdminData = await fetchAdminDashboardData();
+        } catch {
+          // offline or emulator loading
+        }
+      } else {
+        state.session = { loggedIn: false };
+      }
+    } else if (!state.isDeveloperPortal && state.session.isDeveloper) {
+      state.session.loggedIn = false;
     }
     if (state.session.loggedIn) {
       applyMemberPersonalTheme(state.session.memberId);

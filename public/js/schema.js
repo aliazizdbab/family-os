@@ -56,8 +56,11 @@ export function createMeta({
   createdAt = Date.now(),
   schemaVersion = SCHEMA_VERSION,
   invite = null,
+  email = '',
+  emailVerified = false,
+  verificationCode = '',
 } = {}) {
-  return {
+  const out = {
     name: clampStr(name, 50) || 'عائلتي',
     createdAt: nonNegNum(createdAt, Date.now()),
     schemaVersion: Number.isInteger(schemaVersion) ? schemaVersion : SCHEMA_VERSION,
@@ -69,6 +72,10 @@ export function createMeta({
           }
         : null,
   };
+  if (email) out.email = clampStr(email, 120);
+  if (emailVerified) out.emailVerified = Boolean(emailVerified);
+  if (verificationCode) out.verificationCode = clampStr(verificationCode, 16);
+  return out;
 }
 
 export function createMember({

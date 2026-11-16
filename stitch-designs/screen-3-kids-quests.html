@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+
+<html class="light" dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>مهام الأبطال 🌟 — نبض المنزل</title>
+<!-- Google Fonts: Cairo & Tajawal -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&amp;family=Tajawal:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with Forms & Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "outline": "#6c7a71",
+            "surface-container-lowest": "#ffffff",
+            "inverse-on-surface": "#eaf1ff",
+            "secondary-fixed": "#ffddb8",
+            "on-secondary-fixed-variant": "#653e00",
+            "on-secondary": "#ffffff",
+            "background": "#f8f9ff",
+            "surface-variant": "#d3e4fe",
+            "surface-container-highest": "#d3e4fe",
+            "surface-tint": "#006c49",
+            "on-tertiary": "#ffffff",
+            "surface-bright": "#f8f9ff",
+            "on-surface-variant": "#3c4a42",
+            "surface-container": "#e5eeff",
+            "secondary": "#855300",
+            "inverse-primary": "#4edea3",
+            "surface-dim": "#cbdbf5",
+            "on-tertiary-container": "#003d59",
+            "on-primary-fixed": "#002113",
+            "on-secondary-container": "#684000",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#89ceff",
+            "on-error": "#ffffff",
+            "surface-container-low": "#eff4ff",
+            "on-secondary-fixed": "#2a1700",
+            "surface": "#f8f9ff",
+            "on-error-container": "#93000a",
+            "outline-variant": "#bbcabf",
+            "on-primary-container": "#00422b",
+            "error": "#ba1a1a",
+            "inverse-surface": "#213145",
+            "secondary-container": "#fea619",
+            "error-container": "#ffdad6",
+            "surface-container-high": "#dce9ff",
+            "primary-fixed": "#6ffbbe",
+            "tertiary-container": "#23acf1",
+            "on-background": "#0b1c30",
+            "on-surface": "#0b1c30",
+            "on-tertiary-fixed": "#001e2f",
+            "on-tertiary-fixed-variant": "#004c6e",
+            "primary": "#006c49",
+            "secondary-fixed-dim": "#ffb95f",
+            "on-primary-fixed-variant": "#005236",
+            "primary-fixed-dim": "#4edea3",
+            "tertiary": "#006591",
+            "tertiary-fixed": "#c9e6ff",
+            "primary-container": "#10b981"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-lg": "1rem",
+            "margin": "1.25rem",
+            "gutter": "1rem",
+            "space-xl": "1.5rem",
+            "space-xs": "0.25rem",
+            "margin-mobile": "1rem",
+            "gutter-mobile": "0.75rem",
+            "space-md": "0.75rem",
+            "space-sm": "0.5rem"
+          },
+          "fontFamily": {
+            "headline-lg": ["Cairo"],
+            "headline-xl-mobile": ["Cairo"],
+            "label-md": ["Cairo"],
+            "body-md": ["Tajawal"],
+            "numeral-display": ["Cairo"],
+            "headline-md": ["Cairo"],
+            "body-lg": ["Tajawal"],
+            "label-sm": ["Cairo"],
+            "headline-xl": ["Cairo"],
+            "headline-sm": ["Cairo"],
+            "label-lg": ["Cairo"],
+            "body-sm": ["Tajawal"]
+          },
+          "fontSize": {
+            "headline-lg": ["24px", { "lineHeight": "34px", "fontWeight": "600" }],
+            "headline-xl-mobile": ["26px", { "lineHeight": "36px", "fontWeight": "700" }],
+            "label-md": ["12px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "body-md": ["15px", { "lineHeight": "23px", "fontWeight": "400" }],
+            "numeral-display": ["28px", { "lineHeight": "32px", "fontWeight": "700" }],
+            "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+            "body-lg": ["17px", { "lineHeight": "26px", "fontWeight": "400" }],
+            "label-sm": ["11px", { "lineHeight": "16px", "fontWeight": "500" }],
+            "headline-xl": ["32px", { "lineHeight": "44px", "fontWeight": "700" }],
+            "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+            "label-lg": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+            "body-sm": ["13px", { "lineHeight": "20px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Tajawal', sans-serif;
+      background-color: #f8f9ff;
+      color: #0b1c30;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill-icon {
+      font-variation-settings: 'FILL' 1;
+    }
+    /* Ambient Card Elevation */
+    .card-ambient {
+      box-shadow: 0px 4px 16px -2px rgba(15, 23, 42, 0.04), 0px 2px 6px -1px rgba(15, 23, 42, 0.02);
+      border: 1px solid rgba(226, 232, 240, 0.85);
+    }
+    .card-hero-glow {
+      box-shadow: 0px 12px 32px -4px rgba(16, 185, 129, 0.14), 0px 4px 12px -2px rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    .star-gold-gradient {
+      background: linear-gradient(135deg, #fea619 0%, #ffddb8 100%);
+    }
+    /* Hide scrollbar for smooth carousel */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background min-h-screen text-on-surface antialiased selection:bg-primary-container selection:text-surface-container-lowest pb-24">
+<!-- ========================================== -->
+<!-- 1. TOP APP BAR (Shared Components JSON Compliant) -->
+<!-- ========================================== -->
+<header class="sticky top-0 z-40 bg-surface-container-lowest shadow-sm">
+<div class="flex justify-between items-center w-full px-margin-mobile py-space-sm max-w-md mx-auto">
+<!-- Leading: Playful Family Avatar with Heroic Ping Indicator -->
+<div class="flex items-center gap-space-sm">
+<div class="relative w-10 h-10 rounded-full ring-2 ring-primary p-0.5 bg-surface-container-lowest shadow-sm flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover rounded-full" data-alt="Playful happy family avatar illustration in modern Saudi Arabian domestic clothing, smiling warmth in bright clean daylight minimalist studio art style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCx7nvYQtkC3VX0M3laMLT4m6Hr4zwMMe0NWEqfyAD1aRtkFokKh4hbb614JAQVGWx_aPOmaFAi-eevCIrCItLT4HYsJRjMro8CLqgqhL1ZocUwhdv-S4gE8Gmb6F9VuTkcbEnhhhk4SMVXoLU2UzdtNluaRtwW2rDdDcmDD4G6eK7DPVC5T-DateeSFWsvlwXMTcs7fUQg-17YAXVGUHQEVEhl99Cn1ZDMSIhJVuBf85iQbW2mMufrAWDgE23GG_wCNPXer9iftk"/>
+<span class="absolute bottom-0 left-0 w-3 h-3 bg-primary-container rounded-full ring-2 ring-surface-container-lowest"></span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-primary font-bold tracking-tight">مهام الأبطال 🌟</span>
+<span class="font-label-sm text-label-sm text-outline">منزل آل خالد • اليوم</span>
+</div>
+</div>
+<!-- Trailing: Cloud Sync Status & Stars Counter Pill -->
+<div class="flex items-center gap-space-xs">
+<div class="flex items-center gap-1 bg-surface-container-low px-2.5 py-1 rounded-full border border-outline-variant/30">
+<span class="material-symbols-outlined text-primary text-base" data-icon="cloud_done">cloud_done</span>
+<span class="font-label-sm text-label-sm text-primary font-semibold">متزامن</span>
+</div>
+<button aria-label="الإشعارات والتنبيهات" class="w-9 h-9 rounded-full flex items-center justify-center bg-surface-container-low text-on-surface-variant hover:bg-surface-container active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-lg" data-icon="notifications">notifications</span>
+</button>
+</div>
+</div>
+</header>
+<!-- ========================================== -->
+<!-- MAIN CONTENT CONTAINER (Mobile Centered) -->
+<!-- ========================================== -->
+<main class="w-full max-w-md mx-auto px-margin-mobile pt-space-md space-y-space-lg">
+<!-- ========================================== -->
+<!-- 2. KID PROFILE & GAMIFICATION HERO HEADER -->
+<!-- ========================================== -->
+<section class="card-hero-glow bg-surface-container-lowest rounded-xl p-space-lg relative overflow-hidden">
+<!-- Ambient Decorative Circles -->
+<div class="absolute -top-12 -left-12 w-32 h-32 rounded-full bg-primary-container/10 pointer-events-none"></div>
+<div class="absolute -bottom-10 -right-10 w-28 h-28 rounded-full bg-secondary-container/10 pointer-events-none"></div>
+<!-- Member Badge & Quick Stats Header -->
+<div class="flex items-start justify-between relative z-10 mb-space-md">
+<div class="flex items-center gap-space-md">
+<!-- Playful Hero Avatar (Omar) with Cape / Shield Badge -->
+<div class="relative">
+<div class="w-16 h-16 rounded-xl bg-gradient-to-tr from-primary to-primary-container p-0.5 shadow-md flex items-center justify-center">
+<img class="w-full h-full object-cover rounded-xl" data-alt="Playful cheerful 10 year old Arab boy avatar named Omar wearing a vibrant emerald superhero cape and smiling proudly in warm 3D claymation modern digital art style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfVyDt1v1rt6CS8-FQtlwoIuuazZ_7kTHGjZUwqMlKQQlFMT7BhGjyzfbFPJIjjU2_jPXWl85F0iaOdIqjcRDyYNyjBHnqHK2UZX0JG7cslOnqGKfhVOQanjDiDJIRTcTIubO59LFS-9Dv9I5htw93jygDTicwmkps5sKY5WYegbF1D3-hrRQUcwWjN_kDBiDQduyKYZucD_NOEeewBtiKwrhGfK0dcUAnf78sNqnZsH6W8PFfPxDD1wVTH-RA6SAkIn2tI64AdEg"/>
+</div>
+<span class="absolute -top-2 -right-2 bg-secondary-container text-on-secondary-container font-headline-sm text-xs px-1.5 py-0.5 rounded-full shadow-sm border border-surface-container-lowest flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs fill-icon" data-icon="star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-bold">4</span>
+</span>
+</div>
+<!-- Name & Superhero Level Title -->
+<div class="space-y-0.5">
+<div class="flex items-center gap-1.5">
+<h1 class="font-headline-lg text-headline-lg font-bold text-on-surface">عُمَر ⚡</h1>
+<span class="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-label-sm text-label-sm font-bold">نشط اليوم</span>
+</div>
+<div class="flex items-center gap-1 text-secondary font-headline-sm text-xs font-semibold">
+<span class="material-symbols-outlined text-sm" data-icon="shield_person">shield_person</span>
+<span>المستوى 4: بطل المنزل 🦸‍♂️</span>
+</div>
+</div>
+</div>
+<!-- Stars Wallet Widget -->
+<div class="flex flex-col items-end">
+<div class="bg-gradient-to-l from-amber-50 to-orange-50 border border-secondary-container/30 px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary-container fill-icon text-xl" data-icon="kid_star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">kid_star</span>
+<div class="flex flex-col items-start leading-none">
+<span class="font-numeral-display text-headline-md font-bold text-secondary">145</span>
+<span class="font-label-sm text-[10px] text-outline">نجمة ذهبية</span>
+</div>
+</div>
+<button class="mt-1 font-label-sm text-[11px] text-primary hover:text-primary-container font-bold flex items-center gap-0.5 transition-colors">
+<span>سجل النجوم</span>
+<span class="material-symbols-outlined text-xs" data-icon="chevron_left">chevron_left</span>
+</button>
+</div>
+</div>
+<!-- XP Progress Towards Next Level -->
+<div class="space-y-1.5 bg-surface-container-low/60 p-space-sm rounded-lg border border-outline-variant/30 relative z-10">
+<div class="flex justify-between items-center font-label-md text-label-md">
+<span class="text-on-surface font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="trending_up">trending_up</span>
+            التقدم نحو المستوى 5: <strong class="text-primary font-bold">الحارس الذهبي 🛡️</strong>
+</span>
+<span class="text-primary font-bold font-numeral-display text-xs">680 / 1000 XP</span>
+</div>
+<!-- Progress Track -->
+<div class="w-full bg-surface-container-highest h-3 rounded-full overflow-hidden p-0.5">
+<div class="bg-gradient-to-l from-primary to-primary-container h-full rounded-full transition-all duration-500 ease-out" style="width: 68%;"></div>
+</div>
+<!-- Streak Counter -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-1 bg-amber-100/70 text-secondary-container px-2 py-0.5 rounded-full font-label-sm text-xs font-bold">
+<span>🔥</span>
+<span>سلسلة إنجاز 5 أيام متتالية!</span>
+</div>
+<span class="font-label-sm text-[11px] text-outline">+50 XP بونص عند إكمال مهام اليوم</span>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 3. DAILY QUESTS SECTION (مهام اليوم 🎯) -->
+<!-- ========================================== -->
+<section class="space-y-space-md">
+<!-- Section Header with Count -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-lg" data-icon="checklist">checklist</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md font-bold text-on-surface">مهام اليوم 🎯</h2>
+<p class="font-body-sm text-body-sm text-outline">أكمل مهامك لتربح النجوم وترفع مستواك العائلي</p>
+</div>
+</div>
+<span class="font-label-sm text-label-sm bg-primary-container/15 text-primary font-bold px-2 py-1 rounded-full">
+          متبقي 3 مهام
+        </span>
+</div>
+<!-- Quick Filter Chips Horizontal Bar -->
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+<button class="shrink-0 bg-primary text-on-primary px-3.5 py-1.5 rounded-full font-label-md text-label-md font-bold shadow-xs flex items-center gap-1">
+<span>الكل</span>
+<span class="bg-white/20 text-white rounded-full px-1.5 py-0.2 text-[10px]">4</span>
+</button>
+<button class="shrink-0 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/50 px-3.5 py-1.5 rounded-full font-label-md text-label-md font-semibold transition-colors flex items-center gap-1">
+<span>الصباحية ☀️</span>
+</button>
+<button class="shrink-0 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/50 px-3.5 py-1.5 rounded-full font-label-md text-label-md font-semibold transition-colors flex items-center gap-1">
+<span>الدراسية 📚</span>
+</button>
+<button class="shrink-0 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container border border-outline-variant/50 px-3.5 py-1.5 rounded-full font-label-md text-label-md font-semibold transition-colors flex items-center gap-1">
+<span>المكتملة</span>
+<span class="bg-primary-container/20 text-primary rounded-full px-1.5 py-0.2 text-[10px]">1</span>
+</button>
+</div>
+<!-- Quests Cards List -->
+<div class="space-y-space-sm">
+<!-- Quest A: ترتيب السرير والغرفة (Ready to Complete Action) -->
+<div class="card-ambient bg-surface-container-lowest rounded-xl p-space-md hover:border-primary-container/50 transition-all flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-3">
+<!-- Custom Gamified Interactive Checkbox Button -->
+<button class="w-10 h-10 rounded-xl bg-surface-container-low hover:bg-primary-container/20 border-2 border-outline-variant/70 hover:border-primary-container text-transparent hover:text-primary-container flex items-center justify-center transition-all active:scale-95 shrink-0 group" title="اضغط لإتمام المهمة">
+<span class="material-symbols-outlined text-2xl transition-transform group-hover:scale-110" data-icon="check">check</span>
+</button>
+<div class="space-y-0.5">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">ترتيب السرير والغرفة 🛏️</h3>
+</div>
+<div class="flex items-center gap-2 font-body-sm text-xs text-outline">
+<span class="flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span>
+<span>الصباح</span>
+</span>
+<span>•</span>
+<span class="bg-amber-50 text-secondary-container px-2 py-0.2 rounded-full font-bold">مهمة يومية</span>
+</div>
+</div>
+</div>
+<!-- Reward Badge -->
+<div class="shrink-0 flex flex-col items-end">
+<span class="bg-amber-100 text-secondary font-headline-sm text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-xs border border-amber-200">
+<span class="material-symbols-outlined text-xs text-secondary-container fill-icon" data-icon="kid_star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">kid_star</span>
+<span>+15 ⭐</span>
+</span>
+</div>
+</div>
+<!-- Quest B: إخراج القمامة قبل المساء (With Urgency Reminder) -->
+<div class="card-ambient bg-surface-container-lowest rounded-xl p-space-md hover:border-secondary-container/50 transition-all flex items-center justify-between gap-space-sm border-r-4 border-r-secondary-container">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-xl bg-surface-container-low hover:bg-primary-container/20 border-2 border-outline-variant/70 hover:border-primary-container text-transparent hover:text-primary-container flex items-center justify-center transition-all active:scale-95 shrink-0 group" title="اضغط لإتمام المهمة">
+<span class="material-symbols-outlined text-2xl" data-icon="check">check</span>
+</button>
+<div class="space-y-0.5">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">إخراج القمامة والفرز ♻️</h3>
+</div>
+<div class="flex items-center gap-2 font-body-sm text-xs">
+<span class="bg-amber-100/80 text-secondary font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
+<span class="material-symbols-outlined text-xs" data-icon="alarm">alarm</span>
+<span>قبل 6:00 م</span>
+</span>
+<span class="text-outline">تعاون أسري</span>
+</div>
+</div>
+</div>
+<div class="shrink-0 flex flex-col items-end">
+<span class="bg-amber-100 text-secondary font-headline-sm text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-xs border border-amber-200">
+<span class="material-symbols-outlined text-xs text-secondary-container fill-icon" data-icon="kid_star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">kid_star</span>
+<span>+10 ⭐</span>
+</span>
+</div>
+</div>
+<!-- Quest C: سقي نباتات الحديقة (Completed Claimed State) -->
+<div class="card-ambient bg-surface-container-lowest/70 rounded-xl p-space-md opacity-90 flex items-center justify-between gap-space-sm border-dashed">
+<div class="flex items-center gap-3">
+<!-- Completed Active Green Glyph -->
+<div class="w-10 h-10 rounded-xl bg-primary-container text-on-primary flex items-center justify-center shadow-xs shrink-0">
+<span class="material-symbols-outlined text-2xl font-bold" data-icon="check">check</span>
+</div>
+<div class="space-y-0.5">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm font-semibold text-outline line-through">سقي نباتات الحديقة 🌿</h3>
+</div>
+<div class="flex items-center gap-1.5 text-xs">
+<span class="text-primary font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs" data-icon="verified">verified</span>
+<span>تم التحقق بواسطة الوالدة ✓</span>
+</span>
+</div>
+</div>
+</div>
+<div class="shrink-0">
+<span class="bg-primary/10 text-primary font-label-md text-xs font-bold px-2.5 py-1 rounded-full">
+              تم حصد +10 ⭐
+            </span>
+</div>
+</div>
+<!-- Quest D: مراجعة دروس الرياضيات (Educational Quest) -->
+<div class="card-ambient bg-surface-container-lowest rounded-xl p-space-md hover:border-tertiary-container transition-all flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-3">
+<button class="w-10 h-10 rounded-xl bg-surface-container-low hover:bg-primary-container/20 border-2 border-outline-variant/70 hover:border-primary-container text-transparent hover:text-primary-container flex items-center justify-center transition-all active:scale-95 shrink-0 group">
+<span class="material-symbols-outlined text-2xl" data-icon="check">check</span>
+</button>
+<div class="space-y-0.5">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">مراجعة دروس الرياضيات 📐</h3>
+</div>
+<div class="flex items-center gap-2 font-body-sm text-xs text-outline">
+<span class="flex items-center gap-1 text-tertiary font-semibold bg-tertiary-fixed/30 px-2 py-0.2 rounded-full">
+<span class="material-symbols-outlined text-xs" data-icon="timer">timer</span>
+<span>30 دقيقة</span>
+</span>
+<span>فصل الكسور</span>
+</div>
+</div>
+</div>
+<div class="shrink-0 flex flex-col items-end">
+<span class="bg-amber-100 text-secondary font-headline-sm text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-xs border border-amber-200">
+<span class="material-symbols-outlined text-xs text-secondary-container fill-icon" data-icon="kid_star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">kid_star</span>
+<span>+20 ⭐</span>
+</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- 4. FAMILY REWARDS SHOP SECTION (متجر المكافآت العائلية 🎁) -->
+<!-- ========================================== -->
+<section class="space-y-space-md pt-space-xs">
+<!-- Section Banner & Pitch -->
+<div class="bg-gradient-to-r from-surface-container-low via-surface-container-lowest to-surface-container-low border border-outline-variant/40 rounded-xl p-space-md shadow-xs flex items-center justify-between gap-space-sm">
+<div class="space-y-1">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary-container fill-icon" data-icon="redeem" data-weight="fill" style="font-variation-settings: 'FILL' 1;">redeem</span>
+<h2 class="font-headline-md text-headline-md font-bold text-on-surface">متجر المكافآت العائلية 🎁</h2>
+</div>
+<p class="font-body-sm text-body-sm text-outline">استبدل نجومك بمكافآت وتجارب حقيقية متفق عليها مع العائلة!</p>
+</div>
+<a class="shrink-0 bg-secondary/10 text-secondary hover:bg-secondary/20 px-3 py-1.5 rounded-lg font-label-md text-label-md font-bold flex items-center gap-0.5 transition-colors" href="#rewards">
+<span>عرض الكل</span>
+<span class="material-symbols-outlined text-xs" data-icon="arrow_back">arrow_back</span>
+</a>
+</div>
+<!-- Reward Items Grid (2 Columns / Asymmetric Bento Feel) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+<!-- Reward 1: ساعة ألعاب إضافية (Available) -->
+<div class="card-ambient bg-surface-container-lowest rounded-xl p-space-md flex flex-col justify-between space-y-space-md border-t-2 border-t-primary-container">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="w-10 h-10 rounded-xl bg-tertiary-container/15 text-tertiary flex items-center justify-center text-xl">
+                🎮
+              </span>
+<span class="bg-amber-100 text-secondary font-headline-sm text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-secondary-container fill-icon" data-icon="kid_star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">kid_star</span>
+<span>50 نجمة</span>
+</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">ساعة ألعاب إضافية 🕹️</h3>
+<p class="font-body-sm text-xs text-outline mt-0.5">وقت مرح إضافي على البلايستيشن أو الآيباد في نهاية الأسبوع.</p>
+</div>
+</div>
+<button class="w-full bg-primary hover:bg-primary-container text-on-primary py-2.5 rounded-lg font-label-lg text-label-lg font-bold shadow-xs active:scale-98 transition-all flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-base" data-icon="shopping_basket">shopping_basket</span>
+<span>استبدال الآن</span>
+</button>
+</div>
+<!-- Reward 2: اختيار وجبة العشاء يوم الجمعة (Available) -->
+<div class="card-ambient bg-surface-container-lowest rounded-xl p-space-md flex flex-col justify-between space-y-space-md border-t-2 border-t-secondary-container">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="w-10 h-10 rounded-xl bg-secondary-container/15 text-secondary flex items-center justify-center text-xl">
+                🍕
+              </span>
+<span class="bg-amber-100 text-secondary font-headline-sm text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-xs text-secondary-container fill-icon" data-icon="kid_star" data-weight="fill" style="font-variation-settings: 'FILL' 1;">kid_star</span>
+<span>100 نجمة</span>
+</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">اختيار عشاء الجمعة 🍽️</h3>
+<p class="font-body-sm text-xs text-outline mt-0.5">أنت الشيف الحاكم! اختر المطعم أو الوجبة المفضلة لكل الأسرة.</p>
+</div>
+</div>
+<button class="w-full bg-primary hover:bg-primary-container text-on-primary py-2.5 rounded-lg font-label-lg text-label-lg font-bold shadow-xs active:scale-98 transition-all flex items-center justify-center gap-1.5">
+<span class="material-symbols-outlined text-base" data-icon="shopping_basket">shopping_basket</span>
+<span>استبدال الآن</span>
+</button>
+</div>
+<!-- Reward 3: رحلة ترفيهية (Locked / Progress State) -->
+<div class="card-ambient bg-surface-container-low/50 rounded-xl p-space-md flex flex-col justify-between space-y-space-md sm:col-span-2 border-dashed">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center text-xl">
+                  🎡
+                </span>
+<div>
+<div class="flex items-center gap-1.5">
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">رحلة إلى مدينة الألعاب 🎢</h3>
+<span class="bg-slate-200 text-slate-700 font-label-sm text-[10px] px-2 py-0.2 rounded-full font-bold flex items-center gap-0.5">
+<span class="material-symbols-outlined text-xs" data-icon="lock">lock</span>
+<span>مغلقة حالياً</span>
+</span>
+</div>
+<p class="font-body-sm text-xs text-outline">تذكرة شاملة ليوم كامل مع الأصدقاء والعائلة.</p>
+</div>
+</div>
+<span class="bg-slate-200/80 text-outline font-headline-sm text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+<span>200 ⭐</span>
+</span>
+</div>
+<!-- Mini Progress for this reward -->
+<div class="space-y-1 bg-surface-container-lowest p-2 rounded-lg border border-outline-variant/30">
+<div class="flex justify-between items-center font-label-sm text-xs">
+<span class="text-secondary font-bold">لديك 145 ⭐ • ينقصك 55 نجمة</span>
+<span class="font-bold text-outline">72%</span>
+</div>
+<div class="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden">
+<div class="bg-secondary-container h-full rounded-full" style="width: 72%;"></div>
+</div>
+</div>
+</div>
+<button class="w-full bg-slate-200 text-slate-400 py-2.5 rounded-lg font-label-lg text-label-lg font-bold cursor-not-allowed flex items-center justify-center gap-1.5" disabled="">
+<span class="material-symbols-outlined text-base" data-icon="lock">lock</span>
+<span>باقي 55 ⭐ لفتح المكافأة</span>
+</button>
+</div>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- MOTIVATIONAL FAMILY PARENT NOTE BANNER -->
+<!-- ========================================== -->
+<div class="bg-gradient-to-l from-primary/10 via-primary-container/10 to-transparent p-space-md rounded-xl border border-primary/20 flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary-container text-white flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-xl" data-icon="favorite">favorite</span>
+</div>
+<div>
+<p class="font-label-lg text-label-lg text-on-surface font-bold">رسالة فخر من الوالد والوالدة ❤️</p>
+<p class="font-body-sm text-xs text-outline mt-0.5">"عمل رائع يا بطل! التزامك بنظافة المنزل ومساعدة إخوتك يجعلنا فخورين بك دائماً."</p>
+</div>
+</div>
+</main>
+<!-- ========================================== -->
+<!-- 5. BOTTOM NAVIGATION BAR (Shared Components JSON Compliant) -->
+<!-- Active Destination: 'المهام' (Index 2) -->
+<!-- ========================================== -->
+<nav aria-label="شريط التنقل السفلي" class="fixed bottom-0 w-full z-50 flex justify-around items-center px-space-xs py-space-xs bg-surface-container-lowest shadow-md max-w-md left-1/2 -translate-x-1/2">
+<!-- Destination 1: الرئيسية (Inactive) -->
+<a aria-label="الرئيسية" class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1.5 hover:text-primary active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="home">home</span>
+<span class="font-label-sm text-label-sm mt-0.5">الرئيسية</span>
+</a>
+<!-- Destination 2: المتجر (Inactive) -->
+<a aria-label="المتجر" class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1.5 hover:text-primary active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="shopping_bag">shopping_bag</span>
+<span class="font-label-sm text-label-sm mt-0.5">المتجر</span>
+</a>
+<!-- Destination 3: المهام (ACTIVE DESTINATION) -->
+<a aria-current="page" aria-label="المهام" class="flex flex-col items-center justify-center bg-primary-container/15 text-primary rounded-full px-3.5 py-1.5 active:scale-95 transition-transform font-bold" href="#">
+<span class="material-symbols-outlined text-2xl fill-icon" data-icon="checklist" data-weight="fill" style="font-variation-settings: 'FILL' 1;">checklist</span>
+<span class="font-label-sm text-label-sm mt-0.5">المهام</span>
+</a>
+<!-- Destination 4: الصيانة (Inactive) -->
+<a aria-label="الصيانة" class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1.5 hover:text-primary active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="build">build</span>
+<span class="font-label-sm text-label-sm mt-0.5">الصيانة</span>
+</a>
+<!-- Destination 5: المساعد الذكي (Inactive) -->
+<a aria-label="المساعد الذكي" class="flex flex-col items-center justify-center text-on-surface-variant px-3 py-1.5 hover:text-primary active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-2xl" data-icon="smart_toy">smart_toy</span>
+<span class="font-label-sm text-label-sm mt-0.5">المساعد الذكي</span>
+</a>
+</nav>
+</body></html>

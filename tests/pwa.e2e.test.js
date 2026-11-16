@@ -299,6 +299,8 @@ test(
     await page.waitForSelector('#login-screen');
     const famCodeVal = await page.inputValue('#login-family-code');
     assert.equal(famCodeVal, 'family-v2-local');
+    assert.equal(await page.isVisible('#login-username-inp'), true);
+    assert.equal(await page.locator('#login-dev-btn').count(), 0);
     await page.click('#login-submit-btn');
     await page.waitForSelector('#add-item-n');
 
@@ -427,10 +429,43 @@ test(
     assert.ok(settingsText.includes('ترتيب الأقسام الخاص بحسابي'));
     assert.ok(settingsText.includes('إدارة أفراد العائلة والصلاحيات والأرقام السرية'));
 
+    // 6. Family Registration (with email verification & role guide) + Separate Developer Portal URL
     await page.click('#logout-btn');
-    await page.waitForSelector('#login-dev-btn');
+    await page.waitForSelector('#toggle-register-family-btn');
+    await page.click('#toggle-register-family-btn');
+    await page.waitForSelector('#register-family-sec');
+    await page.fill('#reg-family-name', 'عائلة النور');
+    await page.fill('#reg-family-code', 'family-noor');
+    await page.fill('#reg-admin-name', 'أبو نور');
+    await page.fill('#reg-admin-pin', '4321');
+    await page.fill('#reg-family-email', 'noor@example.com');
+    await page.click('#register-family-submit-btn');
+
+    await page.waitForSelector('#email-verification-card');
+    const onboardingText = await page.textContent('#onboarding-email-preview');
+    assert.ok(onboardingText.includes('مدير العائلة'));
+    assert.ok(onboardingText.includes('الأم'));
+    assert.ok(onboardingText.includes('الأبناء'));
+    await page.click('#confirm-email-code-btn');
+    await page.waitForSelector('#add-item-n');
+
+    // Verify logging in via Family Name + Username + User PIN
+    await page.click('#logout-btn');
+    await page.waitForSelector('#login-family-code');
+    await page.fill('#login-family-code', 'عائلة النور');
+    await page.fill('#login-username-inp', 'أبو نور');
+    await page.fill('#login-pin-inp', '4321');
+    await page.click('#login-submit-btn');
+    await page.waitForSelector('#session-family-badge');
+    assert.equal(await page.textContent('#session-family-badge'), '🏠 family-noor');
+    assert.ok((await page.textContent('#session-member-badge')).includes('أبو نور'));
+
+    // Navigate to isolated Developer Portal URL
+    await page.goto(`${baseUrl}/developer.html`, { waitUntil: 'load' });
+    await page.waitForSelector('#dev-login-screen');
     await page.click('#login-dev-btn');
     await page.waitForSelector('#dev-portal-sec');
+    assert.ok((await page.textContent('#dev-portal-sec')).includes('noor@example.com'));
     await page.fill('#dev-new-family-inp', 'family-test-2');
     await page.click('#dev-add-family-btn');
     await page.waitForFunction(() => document.body.textContent.includes('family-test-2'), {
@@ -489,6 +524,67 @@ test(
     await page.click('#export-v2-backup-btn');
     const exportedJson = await page.inputValue('#legacy-json');
     assert.ok(exportedJson.includes('"family-test-2"'));
+
+    await page.setViewportSize({ width: 360, height: 800 });
+
+    // Screen 1: Family Hub dashboard + meal one-tap batch add
+    await page.click('button[data-tab="home"]');
+    await page.waitForSelector('#family-hub-card');
+    assert.equal(await page.isVisible('#hub-budget-card'), true);
+    assert.equal(await page.isVisible('#hub-meal-card'), true);
+    const itemsBeforeMeal = await page.locator('[data-item-row]').count();
+    await page.click('#hub-add-meal-items-btn');
+    await page.waitForFunction(
+      (prev) => document.querySelectorAll('[data-item-row]').length > prev,
+      itemsBeforeMeal
+    );
+
+    // Screens 2 & 5: Visual Store, pantry essentials batch add, stepper, and In-Store mode
+    await page.click('button[data-tab="store"]');
+    await page.waitForSelector('#smart-pantry-alert');
+    assert.equal(await page.isVisible('#add-pantry-essentials-btn'), true);
+    await page.click('#add-pantry-essentials-btn');
+    await page.waitForSelector('[data-cart-step-inc]');
+    const firstStepper = page.locator('[data-cart-step-inc]').first();
+    const steppedId = await firstStepper.getAttribute('data-cart-step-inc');
+    await firstStepper.click();
+    await page.waitForSelector(`[data-cart-step-inc="${steppedId}"]`);
+    assert.equal(await page.isVisible('#instore-contrast-btn'), true);
+    await page.click('#instore-contrast-btn');
+    assert.equal(await page.isVisible('#quick-store-companion'), true);
+    await page.click('#finish-shopping-trip-btn');
+
+    // Screen 3: Kids Gamified Quests & Family Rewards Shop
+    await page.click('button[data-tab="tasks"]');
+    await page.waitForSelector('#tasks-hero-card');
+    assert.equal(await page.isVisible('#family-rewards-shop'), true);
+
+    // Screen 4: Home & Car Health Tracker + 360px touch/overflow audit
+    await page.click('button[data-tab="maint"]');
+    await page.waitForSelector('#maint-car-card');
+    assert.equal(await page.isVisible('#maint-appliances-sec'), true);
+    const maintLayout = await page.evaluate(() => {
+      const overflow = document.documentElement.scrollWidth > window.innerWidth;
+      const buttons = Array.from(document.querySelectorAll('button')).filter(
+        (b) => b.offsetParent !== null
+      );
+      const minTouchHeight = buttons.reduce(
+        (min, b) => Math.min(min, b.getBoundingClientRect().height),
+        Infinity
+      );
+      return { overflow, minTouchHeight };
+    });
+    assert.equal(maintLayout.overflow, false);
+    assert.ok(
+      maintLayout.minTouchHeight >= 44,
+      `Expected >= 44px touch targets on maint tab, got ${maintLayout.minTouchHeight}`
+    );
+
+    await page.click('#add-all-maint-items-btn');
+    await page.click('button[data-tab="home"]');
+    await page.waitForFunction(() =>
+      document.body.innerText.includes('تغيير زيت محرك السيارة')
+    );
 
     assert.deepEqual(errors, []);
   }

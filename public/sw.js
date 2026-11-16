@@ -1,11 +1,15 @@
-const CACHE_VERSION = 'family-os-v1.0.0';
+const CACHE_VERSION = 'family-os-v1.3.0';
 
 const LOCAL_SHELL_ASSETS = [
   '/',
   '/index.html',
+  '/developer.html',
   '/manifest.webmanifest',
   '/css/app.css',
   '/js/app.js',
+  '/js/identity.js',
+  '/js/auth-v3.js',
+  '/js/admin-controller.js',
   '/js/state.js',
   '/js/schema.js',
   '/js/store-idb.js',
@@ -16,11 +20,15 @@ const LOCAL_SHELL_ASSETS = [
   '/js/ai-actions.js',
   '/js/models-scan.js',
   '/js/ui/dialogs.js',
+  '/js/ui/hub.js',
   '/js/ui/list.js',
+  '/js/ui/maintenance.js',
   '/js/ui/settings.js',
   '/js/ui/store-mode.js',
   '/js/ui/tasks.js',
   '/js/ui/chat.js',
+  '/js/ui/login-portal.js',
+  '/js/ui/admin-portal.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-maskable-512.png',

@@ -28,7 +28,146 @@ export function getEffectiveMembersList(snap) {
   return DEFAULT_FAMILY_MEMBERS.map((m) => ({ ...m }));
 }
 
+/**
+ * Build an Arabic onboarding & confirmation email explaining how to add family members and roles.
+ */
+export function buildOnboardingEmailContent({
+  familyName = 'عائلتي',
+  roomId = '',
+  adminName = 'الأب',
+  adminPin = '1234',
+  email = '',
+  verificationCode = '',
+  inviteUrl = '',
+} = {}) {
+  const subject = `تأكيد تسجيل «${familyName}» في Family OS ودليل إضافة أفراد الأسرة`;
+  const lines = [
+    `مرحباً بك في تطبيق مقاضي العائلة (Family OS) 🏡`,
+    ``,
+    `تم إنشاء مساحة عائلية معزولة باسم: ${familyName}`,
+    `• البريد المسجّل: ${email}`,
+    `• رمز تأكيد البريد الإلكتروني: ${verificationCode}`,
+    ``,
+    `🔐 بيانات تسجيل الدخول الخاصة بمؤسس العائلة:`,
+    `- اسم / كود العائلة: ${roomId}`,
+    `- اسم المستخدم: ${adminName}`,
+    `- الرقم السري: ${adminPin}`,
+    ``,
+    `👨‍👩‍👧‍👦 كيفية إضافة باقي أفراد الأسرة وصلاحياتهم (4 مستويات):`,
+    `1. افتح التطبيق وسجّل الدخول بحساب مدير العائلة (${adminName}).`,
+    `2. انتقل إلى تبويب «⚙️ الإعدادات» ثم قسم «إدارة أفراد العائلة والصلاحيات والأرقام السرية».`,
+    `3. أضف كل فرد (الاسم + الرمز + الصلاحية + الرقم السري للدخول).`,
+    ``,
+    `🛡️ دليل الصلاحيات داخل العائلة:`,
+    `• 👑 مدير العائلة (الأب - admin): إدارة الميزانية الشهرية، الأقسام، إضافة وحذف الأفراد وتعيين أرقامهم السرية، إعدادات الذكاء الاصطناعي، وتوليد روابط الدعوة.`,
+    `• 🤱 الأم (إدارة الطلبات والمهام - mother): إضافة وتعديل المقاضي والأقسام، اعتماد طلبات الأبناء، وإدارة المهام المنزلية والمكافآت.`,
+    `• 🧑 عضو عائلة (member): إضافة المقاضي، استخدام وضع المتجر السريع، وإنجاز المهام.`,
+    `• 🧒 الأبناء (child): إرسال طلبات المقاضي للموافقة، إنجاز المهام المنزلية لكسب النجوم (⭐)، واستبدال المكافآت من متجر المكافآت العائلية.`,
+  ];
+  if (inviteUrl) {
+    lines.push(``, `🔗 رابط الدعوة المباشر لانضمام أفراد الأسرة:`, inviteUrl);
+  }
+  lines.push(``, `نتمنى لعائلتكم تنظيماً ممتعاً ومريحاً ✨`);
+
+  return {
+    subject,
+    body: lines.join('\n'),
+  };
+}
+
+function renderRegisterFamilyCard(appState) {
+  const draft = appState.pendingVerification || {};
+  return `
+    <section class="sec stack login-card" id="register-family-sec">
+      <div class="row">
+        <h2>🏡 تسجيل عائلة جديدة وتأكيد البريد الإلكتروني</h2>
+        <span class="badge-ok">بيانات معزولة</span>
+      </div>
+      <p class="mu">أنشئ مساحة خاصة لعائلتك، وأدخل بريدك الإلكتروني لتأكيد التسجيل واستلام رسالة تشرح خطوات إضافة باقي أفراد الأسرة وصلاحياتهم.</p>
+
+      <label class="field-box">
+        <span class="field-lbl">🏠 اسم العائلة</span>
+        <input id="reg-family-name" class="input" value="${esc(draft.familyName || '')}" placeholder="مثلاً: عائلة الأحمد" />
+      </label>
+
+      <label class="field-box">
+        <span class="field-lbl">🆔 كود العائلة المميز (اختياري بالإنجليزية)</span>
+        <input id="reg-family-code" class="input" dir="ltr" value="${esc(draft.roomId || '')}" placeholder="مثلاً: family-ahmad (يُولّد تلقائياً إن تُرك فارغاً)" />
+      </label>
+
+      <div class="g2">
+        <label class="field-box">
+          <span class="field-lbl">👤 اسم المستخدم المؤسس (مدير العائلة)</span>
+          <input id="reg-admin-name" class="input" value="${esc(draft.adminName || 'الأب')}" placeholder="مثلاً: الأب" />
+        </label>
+        <label class="field-box">
+          <span class="field-lbl">🔑 الرقم السري للمستخدم المؤسس</span>
+          <input id="reg-admin-pin" class="input" type="password" inputmode="numeric" maxlength="16" dir="ltr" value="${esc(draft.adminPin || '1234')}" placeholder="4 أرقام فأكثر" />
+        </label>
+      </div>
+
+      <label class="field-box">
+        <span class="field-lbl">📧 البريد الإلكتروني لتأكيد التسجيل وإرسال دليل العائلة</span>
+        <input id="reg-family-email" class="input" type="email" dir="ltr" value="${esc(draft.email || '')}" placeholder="family@example.com" />
+      </label>
+
+      <button type="button" id="register-family-submit-btn" class="btn full">📧 تسجيل العائلة وإرسال رسالة التأكيد</button>
+      <button type="button" id="back-to-login-btn" class="btn g full">↩️ العودة لتسجيل الدخول</button>
+    </section>
+  `;
+}
+
+function renderEmailVerificationCard(appState) {
+  const pending = appState.pendingVerification || {};
+  const mailtoHref = `mailto:${encodeURIComponent(pending.email || '')}?subject=${encodeURIComponent(pending.emailSubject || '')}&body=${encodeURIComponent(pending.emailBody || '')}`;
+
+  return `
+    <section class="sec stack login-card" id="email-verification-card">
+      <div class="row">
+        <h2>✉️ تأكيد تسجيل العائلة عبر البريد الإلكتروني</h2>
+        <span class="badge-warn">بانتظار التأكيد</span>
+      </div>
+      <div class="list-item stack">
+        <strong>📨 تم إرسال رسالة التأكيد ودليل الصلاحيات إلى: <code dir="ltr">${esc(pending.email || '')}</code></strong>
+        <small class="mu">تتضمن الرسالة رمز التأكيد وطريقة إضافة أفراد الأسرة ومستويات الصلاحيات الأربع.</small>
+      </div>
+
+      <label class="field-box">
+        <span class="field-lbl">🔢 رمز تأكيد البريد الإلكتروني (من الرسالة المرسلة)</span>
+        <input
+          id="verify-email-code-inp"
+          class="input"
+          dir="ltr"
+          maxlength="16"
+          value="${esc(pending.verificationCode || '')}"
+          placeholder="أدخل رمز التأكيد المكون من 6 أرقام"
+        />
+      </label>
+
+      <button type="button" id="confirm-email-code-btn" class="btn full">✅ تأكيد التسجيل والدخول للعائلة</button>
+
+      <div class="stack">
+        <strong>📄 نص الرسالة المُرسلة إلى بريدك الإلكتروني (دليل إضافة الأسرة وصلاحياتهم):</strong>
+        <pre id="onboarding-email-preview" class="chat-pre">${esc(pending.emailBody || '')}</pre>
+      </div>
+
+      <div class="g2">
+        <a id="send-onboarding-mailto-btn" class="btn g" href="${esc(mailtoHref)}">📧 فتح في تطبيق البريد</a>
+        <button type="button" id="copy-onboarding-email-btn" class="btn g">📋 نسخ الرسالة والدليل</button>
+      </div>
+      <button type="button" id="back-to-login-btn" class="btn g full">↩️ العودة لتسجيل الدخول</button>
+    </section>
+  `;
+}
+
 export function renderLoginScreenView(appState) {
+  if (appState.loginMode === 'register') {
+    return renderRegisterFamilyCard(appState);
+  }
+  if (appState.loginMode === 'verify' && appState.pendingVerification) {
+    return renderEmailVerificationCard(appState);
+  }
+
   const snap = appState.localSnapshot || {};
   const members = getEffectiveMembersList(snap);
   const selectedId = appState.loginSelectedMemberId || members[0]?.id || 'mem_father';
@@ -42,17 +181,17 @@ export function renderLoginScreenView(appState) {
   return `
     <section class="sec stack login-card" id="login-screen">
       <div class="row">
-        <h2>🔐 بوابة الدخول وفصل العائلات</h2>
-        <span class="badge-ok">4 مستويات</span>
+        <h2>🔐 تسجيل دخول العائلة</h2>
+        <span class="badge-ok">بيانات معزولة</span>
       </div>
-      <p class="mu">كل عائلة مفهرسة ومعزولة بالكامل بكودها الخاص؛ بيانات العائلة وطلباتها ومهامها وأعضائها لا تختلط بأي عائلة أخرى.</p>
+      <p class="mu">أدخل اسم أو كود العائلة، واسم المستخدم، والرقم السري للدخول إلى مساحة عائلتك الخاصة (${esc(famName)}).</p>
 
       <div class="sec stack">
         <label class="field-box">
-          <span class="field-lbl">🏠 كود العائلة الحالي (${esc(famName)})</span>
+          <span class="field-lbl">🏠 اسم أو كود العائلة (${esc(famName)})</span>
           <div class="row">
-            <input id="login-family-code" class="input grow" dir="ltr" value="${esc(appState.roomId)}" placeholder="مثلاً: family-v2-local" />
-            <button type="button" id="switch-family-code-btn" class="btn g">🔄 اعتماد كود العائلة</button>
+            <input id="login-family-code" class="input grow" dir="ltr" value="${esc(appState.roomId)}" placeholder="اسم أو كود العائلة (مثلاً: family-v2-local)" />
+            <button type="button" id="switch-family-code-btn" class="btn g">🔄 تحميل العائلة</button>
           </div>
         </label>
         ${
@@ -71,28 +210,31 @@ export function renderLoginScreenView(appState) {
       </div>
 
       <div class="stack">
-        <strong>👤 اختر حسابك من أفراد العائلة:</strong>
-        <div class="profile-grid">
+        <label class="field-box">
+          <span class="field-lbl">👤 اسم المستخدم</span>
+          <input
+            id="login-username-inp"
+            class="input"
+            value="${esc(selectedMember?.name || 'الأب')}"
+            placeholder="اكتب اسم المستخدم (مثلاً: الأب)"
+          />
+        </label>
+        <div class="chips" aria-label="اختيار سريع لأفراد العائلة">
           ${members
             .map(
               (m) => `
             <button
               type="button"
-              class="profile-card ${m.id === selectedMember?.id ? 'active' : ''}"
+              class="btn ${m.id === selectedMember?.id ? '' : 'g'}"
               data-login-member="${esc(m.id)}"
-            >
-              <span class="profile-ico">${esc(m.icon || '👤')}</span>
-              <strong>${esc(m.name)}</strong>
-              <small class="mu">${esc(getRoleShortLabel(m.role))}</small>
-              <span class="badge-ok">⭐ ${Number(m.points) || 0} نقطة</span>
-            </button>`
+            >${esc(m.icon || '👤')} ${esc(m.name)}</button>`
             )
             .join('')}
         </div>
       </div>
 
       <label class="field-box">
-        <span class="field-lbl">🔑 الرقم السري للحساب المختار (${esc(selectedMember?.name || 'الأب')})</span>
+        <span class="field-lbl">🔑 الرقم السري للمستخدم</span>
         <input
           id="login-pin-inp"
           class="input"
@@ -101,31 +243,56 @@ export function renderLoginScreenView(appState) {
           maxlength="16"
           dir="ltr"
           value="${esc(selectedMember?.accessCode || '1234')}"
-          placeholder="أدخل الرقم السري للحساب"
+          placeholder="أدخل الرقم السري للمستخدم"
         />
       </label>
+
       <button type="button" id="login-submit-btn" class="btn full">🔓 دخول للبرنامج</button>
 
       <div class="sec stack">
-        <div class="row">
-          <strong>👨‍💻 بوابة المبرمج والدعم الفني (المستوى 1)</strong>
-          <span class="badge-warn">صلاحيات شاملة لكل العائلات</span>
-        </div>
-        <p class="mu">لمعاينة جميع العائلات وفهرس المستخدمين، مراجعة النشاطات، ورؤية وتعديل الأرقام السرية للدعم الفني.</p>
-        <div class="row">
-          <input
-            id="login-dev-pin"
-            class="input grow"
-            type="password"
-            inputmode="numeric"
-            maxlength="16"
-            dir="ltr"
-            value="9999"
-            placeholder="الرمز السري للمبرمج (9999)"
-          />
-          <button type="button" id="login-dev-btn" class="btn g">👨‍💻 دخول المبرمج</button>
-        </div>
+        <p class="mu">ليس لعائلتك حساب بعد؟ سجّل عائلة جديدة وأكّد بريدك الإلكتروني لاستلام دليل إضافة أفراد الأسرة.</p>
+        <button type="button" id="toggle-register-family-btn" class="btn g full">➕ تسجيل عائلة جديدة</button>
       </div>
+    </section>
+  `;
+}
+
+export function renderDeveloperLoginScreenView() {
+  return `
+    <section class="sec stack login-card" id="dev-login-screen">
+      <div class="row">
+        <h2>👨‍💻 بوابة المبرمج والدعم الفني الشامل</h2>
+        <span class="badge-warn">رابط مستقل للمبرمج</span>
+      </div>
+      <p class="mu">هذه البوابة مخصصة حصرياً للمبرمج والدعم الفني (المستوى 1) ومنفصلة تماماً عن واجهة دخول العائلات، لمعاينة العائلات المعزولة ومراجعة النشاطات وتعديل الأرقام السرية.</p>
+
+      <label class="field-box">
+        <span class="field-lbl">👤 معرف المبرمج</span>
+        <input
+          id="login-dev-user"
+          class="input"
+          dir="ltr"
+          value="developer"
+          placeholder="developer"
+        />
+      </label>
+
+      <label class="field-box">
+        <span class="field-lbl">🔑 الرقم السري للمبرمج</span>
+        <input
+          id="login-dev-pin"
+          class="input"
+          type="password"
+          inputmode="numeric"
+          maxlength="16"
+          dir="ltr"
+          value="9999"
+          placeholder="الرمز السري للمبرمج (9999)"
+        />
+      </label>
+
+      <button type="button" id="login-dev-btn" class="btn full">👨‍💻 دخول بوابة المبرمج</button>
+      <a href="/" class="btn g full">🏠 الانتقال لواجهة تطبيق العائلة</a>
     </section>
   `;
 }
@@ -434,6 +601,14 @@ function renderDeveloperSupportPortalCard(appState) {
   const logs = Object.values(snap.log || {})
     .sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))
     .slice(0, 12);
+  const regEmail =
+    snap.meta?.email ||
+    Object.values(snap.members || {}).find((m) => m?.email)?.email ||
+    (Array.isArray(appState.prefs?.familyDirectory)
+      ? appState.prefs.familyDirectory.find((f) => f?.ownerEmail)?.ownerEmail
+      : null) ||
+    'noor@example.com';
+  const emailVerified = Boolean(snap.meta?.emailVerified || snap.meta?.email || regEmail !== 'غير مسجّل');
 
   return `
     <section class="sec stack" id="dev-portal-sec">
@@ -442,6 +617,11 @@ function renderDeveloperSupportPortalCard(appState) {
         <span class="badge-warn">المستوى 1</span>
       </div>
       <p class="mu">صلاحيات كاملة للتنقل بين جميع العائلات المعزولة، مراجعة النشاطات، ورؤية أو تعديل أرقام الدخول السرية للدعم الفني.</p>
+
+      <div class="list-item">
+        <span>📧 بريد تسجيل العائلة: <code dir="ltr">${esc(regEmail)}</code></span>
+        <span class="${emailVerified ? 'badge-ok' : 'badge-warn'}">${emailVerified ? '✅ مؤكد' : '⏳ غير مؤكد'}</span>
+      </div>
 
       <div class="row">
         <input id="dev-new-family-inp" class="input grow" dir="ltr" placeholder="إنشاء كود عائلة جديدة (مثلاً: family-ahmad)" />
