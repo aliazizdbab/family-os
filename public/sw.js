@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'family-os-v1.3.0';
+const CACHE_VERSION = 'family-os-v2.0.0';
 
 const LOCAL_SHELL_ASSETS = [
   '/',
@@ -54,6 +54,7 @@ const API_BYPASS_HOSTS = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
