@@ -1,6 +1,6 @@
 {
   "name": "family-os",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Family OS - Arabic RTL offline-first PWA for family grocery lists, requests, budget and AI assistant",
@@ -12,7 +12,8 @@
     "format": "prettier --write \"public/**/*.{js,css,html}\" \"tests/**/*.js\" \"tools/*.{js,html}\"",
     "format:check": "prettier --check \"public/**/*.{js,css,html}\" \"tests/**/*.js\" \"tools/*.{js,html}\"",
     "serve": "npx --yes serve public -l 5000",
-    "emulators": "npx -y firebase-tools@latest emulators:start --only auth,database,hosting"
+    "emulators": "npx -y firebase-tools@latest emulators:start --only auth,database,hosting",
+    "bump": "node tools/bump-version.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",

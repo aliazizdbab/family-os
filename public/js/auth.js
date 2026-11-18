@@ -149,7 +149,10 @@ export async function initFirebaseServices({
     firebaseAuthInstance = authMod.getAuth(firebaseAppInstance);
   }
   if (!firebaseDbInstance) {
-    firebaseDbInstance = dbMod.getDatabase(firebaseAppInstance, effectiveConfig.databaseURL);
+    // Must match auth-v3.getFirebaseServices(), which calls getDatabase(app)
+    // WITHOUT a URL argument. Mixing both forms throws a fatal
+    // "Database initialized multiple times" error on the live site.
+    firebaseDbInstance = dbMod.getDatabase(firebaseAppInstance);
   }
 
   if (useEmulator && !authEmulatorConnected) {
@@ -179,6 +182,29 @@ export async function initFirebaseServices({
 
 export async function initFirebaseAuth(options = {}) {
   return initFirebaseServices(options);
+}
+
+/**
+ * Resolve Firebase services that REQUIRE an already-authenticated user.
+ * Unlike signInAnonymouslyIfConfigured this never creates an anonymous user:
+ * sync writes must run as the real family/staff identity or the RTDB rules
+ * reject them and the outbox never drains.
+ */
+export async function getAuthenticatedServices(options = {}) {
+  const services = await initFirebaseServices(options);
+  if (!services.ok) return services;
+  const { auth } = services;
+  if (auth && typeof auth.authStateReady === 'function') {
+    try {
+      await auth.authStateReady();
+    } catch {
+      // ignore restore failures
+    }
+  }
+  if (!auth?.currentUser) {
+    return { ...services, ok: false, reason: 'no-auth-session' };
+  }
+  return { ...services, ok: true, uid: auth.currentUser.uid, isAnonymous: auth.currentUser.isAnonymous };
 }
 
 export async function signInAnonymouslyIfConfigured(options = {}) {

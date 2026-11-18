@@ -1,10 +1,12 @@
-const CACHE_VERSION = 'family-os-v2.0.0';
+/* global Response, caches, fetch, self */
+const CACHE_VERSION = 'family-os-v1.1.0-2026-11-18T02-16-58';
 
 const LOCAL_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/developer.html',
   '/manifest.webmanifest',
+  '/manifest-dev.webmanifest',
   '/css/app.css',
   '/js/app.js',
   '/js/identity.js',
@@ -18,6 +20,8 @@ const LOCAL_SHELL_ASSETS = [
   '/js/sync.js',
   '/js/ai.js',
   '/js/ai-actions.js',
+  '/js/ai-config.js',
+  '/js/model-catalog.js',
   '/js/models-scan.js',
   '/js/ui/dialogs.js',
   '/js/ui/hub.js',
@@ -32,6 +36,9 @@ const LOCAL_SHELL_ASSETS = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-maskable-512.png',
+  '/icons/icon-dev-192.png',
+  '/icons/icon-dev-512.png',
+  '/icons/icon-dev-maskable-512.png',
 ];
 
 const FIREBASE_SDK_ASSETS = [
@@ -59,6 +66,14 @@ self.addEventListener('install', (event) => {
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
       await cache.addAll(LOCAL_SHELL_ASSETS);
+      // Take control immediately: on mobile PWAs the app may stay in memory for
+      // days, so a waiting worker would never activate and users would keep the
+      // old build (this caused stale family portal links after a release).
+      try {
+        await self.skipWaiting();
+      } catch {
+        // ignore
+      }
       await Promise.all(
         FIREBASE_SDK_ASSETS.map(async (url) => {
           try {
@@ -135,12 +150,31 @@ self.addEventListener('fetch', (event) => {
 
   if (!isStaticOrigin) return;
 
+  const isShellCode =
+    url.origin === self.location.origin &&
+    /\.(?:js|css|html|webmanifest)$/i.test(url.pathname);
+
   event.respondWith(
     (async () => {
       const cache = await caches.open(CACHE_VERSION);
       const cached = await cache.match(request, {
         ignoreSearch: url.origin === self.location.origin,
       });
+
+      // Code/shell assets: return cache immediately but refresh in the
+      // background, so the next launch always runs the newest build.
+      if (isShellCode) {
+        const networkPromise = fetch(request)
+          .then((response) => {
+            if (response && response.ok) cache.put(request, response.clone());
+            return response;
+          })
+          .catch(() => null);
+        if (cached) return cached;
+        const fresh = await networkPromise;
+        return fresh || cached || Response.error();
+      }
+
       if (cached) return cached;
 
       const response = await fetch(request);

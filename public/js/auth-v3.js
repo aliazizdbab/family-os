@@ -16,6 +16,7 @@ import {
   isValidPhone,
   memberAuthEmail,
   memberNameHash,
+  sha256Hex,
   newId,
   normalizeName,
   validatePassword,
@@ -26,6 +27,15 @@ import {
   DEFAULT_RTDB_URL,
   state,
 } from './state.js';
+import {
+  DEFAULT_CATS,
+  SCHEMA_VERSION,
+  createBudget,
+  createCategory,
+  createMember,
+  createMeta,
+} from './schema.js';
+import { generateInviteToken } from './auth.js';
 import { localStore } from './store-idb.js';
 
 const FIREBASE_APP_CDN = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js';
@@ -83,6 +93,69 @@ export async function getFirebaseServices({ useEmulator = state.prefs.useEmulato
   }
 
   return { app: firebaseApp, auth: firebaseAuth, db: firebaseDb, appMod, authMod, dbMod };
+}
+
+/**
+ * Ensure the v2 sync room exists for a freshly authenticated v3 family.
+ *
+ * RC4 fix: registration writes to /v3/... but the live sync engine reads/writes
+ * /v2/rooms/{fid}/... . Without this bootstrap, a brand-new family would sign in
+ * and see an empty room on every device. This function creates the canonical
+ * v2 room skeleton (meta + budget + admin member + default categories) exactly
+ * once, using the *real* authenticated uid, so the room's security rules accept
+ * the writer as its admin.
+ *
+ * Idempotent: if /v2/rooms/{fid}/meta already exists, nothing is written.
+ */
+async function ensureV2RoomForFamily({ db, dbMod, fid, uid, familyName, memberName, role, nowMs = Date.now() }) {
+  try {
+    // IMPORTANT ordering: v2/rooms/{fid} is only readable by an existing room
+    // member, so the membership record must be created FIRST. Any "does the room
+    // exist?" read before that throws PERMISSION_DENIED and silently aborts the
+    // bootstrap (the original cause of empty rooms on new families).
+    const adminMember = createMember({
+      id: uid,
+      name: memberName || 'المسؤول',
+      icon: role === 'admin' ? '🛡️' : '👤',
+      role,
+      off: false,
+      joinedAt: nowMs,
+    });
+    const adminPayload = { ...adminMember };
+    delete adminPayload.id;
+
+    // Allowed by rules on first join (self + admin + members node absent) and on
+    // repeat logins (existing admin may write members).
+    await dbMod.set(dbMod.ref(db, `v2/rooms/${fid}/members/${uid}`), adminPayload);
+
+    // Now that we are a member, the room is readable.
+    const existing = await dbMod.get(dbMod.ref(db, `v2/rooms/${fid}/meta`));
+    if (existing.exists()) return { bootstrapped: false };
+
+    const invite = generateInviteToken(7 * 24 * 60 * 60 * 1000, nowMs);
+    const meta = createMeta({
+      name: familyName || 'عائلتي',
+      createdAt: nowMs,
+      schemaVersion: SCHEMA_VERSION,
+      invite,
+    });
+    const budget = createBudget({ monthly: 250, perCat: {} });
+
+    await dbMod.set(dbMod.ref(db, `v2/rooms/${fid}/meta`), meta);
+    await dbMod.set(dbMod.ref(db, `v2/rooms/${fid}/budget`), budget);
+
+    const catUpdates = {};
+    for (const catDef of DEFAULT_CATS) {
+      const cat = createCategory({ ...catDef, updatedAt: nowMs, deleted: false });
+      const { id: catId, ...catPayload } = cat;
+      catUpdates[`v2/rooms/${fid}/cats/${catId}`] = catPayload;
+    }
+    await dbMod.update(dbMod.ref(db), catUpdates);
+    return { bootstrapped: true };
+  } catch (err) {
+    console.warn('[auth-v3] ensureV2RoomForFamily failed:', err);
+    return { bootstrapped: false, error: err };
+  }
 }
 
 /**
@@ -184,12 +257,66 @@ export async function loginFamilyMember({ familyName, memberName, password }) {
   // 3. Derive synthetic auth email
   const authEmail = await memberAuthEmail(fid, cleanMem, gen);
 
-  // 4. Authenticate with Firebase Auth
+  // 4. Ban check + staff-managed credentials
+  // Staff can set a PIN for any member (v3/credentials) and can disable a member
+  // (members/{id}/off). Both must be enforced before touching Firebase Auth.
+  // The loginIndex entry is public (needed before sign-in) and carries the
+  // staff-managed PIN hash + access flag, so a member can be verified and
+  // provisioned before any family membership record exists.
+  const expectedPinHash = String(loginRecord?.pinHash || '');
+  if (expectedPinHash) {
+    const enteredHash = await sha256Hex(`pin|${fid}|${memHash}|${cleanPwd}`);
+    if (enteredHash !== expectedPinHash) {
+      return { ok: false, message: 'كلمة المرور غير صحيحة.' };
+    }
+  }
+  if (loginRecord?.off === true) {
+    return {
+      ok: false,
+      message: 'تم إيقاف وصولك إلى هذه العائلة. يرجى التواصل مع إدارة المنصة.',
+    };
+  }
+  const storedCred = expectedPinHash ? { pinHash: expectedPinHash } : null;
+
+  // 5. Authenticate with Firebase Auth.
+  // Firebase rejects short passwords (< 6 chars), while family PINs are often
+  // 4 digits — so a deterministic strong password is derived from the PIN.
+  const authPassword = await sha256Hex(`pwd|${fid}|${memHash}|${cleanPwd}`);
   try {
-    const userCred = await authMod.signInWithEmailAndPassword(auth, authEmail, cleanPwd);
+    let userCred;
+    try {
+      userCred = await authMod.signInWithEmailAndPassword(auth, authEmail, authPassword);
+    } catch (firstErr) {
+      // Legacy accounts used the raw PIN as the password.
+      try {
+        if (!storedCred) throw firstErr;
+        userCred = await authMod.signInWithEmailAndPassword(auth, authEmail, cleanPwd);
+      } catch (authErr) {
+        const code = String(authErr?.code || '');
+        const canProvision = Boolean(storedCred);
+        if (!canProvision || !/user-not-found|invalid-credential|invalid-login/i.test(code)) {
+          throw authErr;
+        }
+        // First login for a staff-provisioned member (or after a PIN reset that
+        // bumped the generation): create the Firebase account on the spot.
+        userCred = await authMod.createUserWithEmailAndPassword(auth, authEmail, authPassword);
+      }
+    }
+
     const user = userCred.user;
 
-    // Save session state
+    // 5b. bootstrap the v2 sync room for this family exactly once, using the
+    // real authenticated uid, so the live sync engine has a canonical room to read.
+    await ensureV2RoomForFamily({
+      db,
+      dbMod,
+      fid,
+      uid: user.uid,
+      familyName: familyRecord.name || cleanFam,
+      memberName: cleanMem,
+      role,
+    });
+
     const session = {
       loggedIn: true,
       fid,
@@ -207,14 +334,10 @@ export async function loginFamilyMember({ familyName, memberName, password }) {
 
     return { ok: true, session, user };
   } catch (err) {
-    // If offline, emulator, or demo room, allow graceful local authentication fallback
-    if (
-      fid === 'family-v2-local' ||
-      !navigator.onLine ||
-      /network-request-failed|operation-not-allowed|user-not-found|invalid-credential/i.test(
-        err?.code || ''
-      )
-    ) {
+    // Offline / demo-room fallback ONLY. Auth rejections (wrong password, banned,
+    // disabled account) must never produce a local session.
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (fid === 'family-v2-local' || offline) {
       const session = {
         loggedIn: true,
         fid,
@@ -314,9 +437,11 @@ export async function registerFamilyRequest({ familyName, ownerName, email, phon
 
   const userProfile = {
     fid,
+    memberId: 'mem_admin',
     role: 'admin',
     name: ownerName,
     email: adminEmail,
+    disabled: false,
     createdAt: now,
   };
 
@@ -325,10 +450,12 @@ export async function registerFamilyRequest({ familyName, ownerName, email, phon
     status: 'pending',
     schemaVersion: 3,
     createdAt: now,
+    createdBy: uid,
     features: defaultFeatureFlags(),
   };
 
   const adminMember = {
+    uid,
     name: ownerName,
     role: 'admin',
     icon: '👑',
@@ -336,18 +463,29 @@ export async function registerFamilyRequest({ familyName, ownerName, email, phon
     joinedAt: now,
   };
 
-  // 4. Save to RTDB
+  // 4. Save to RTDB.
+  // Security rules evaluate `root.child(...)` against the PRE-write state, so a
+  // multi-path update cannot both create a parent record and reference it in the
+  // same atomic write (PERMISSION_DENIED). Each step below is deliberately
+  // sequential and depends on the previous one being persisted:
+  //  1) families/{fid}/meta        -> needs v3/users/{uid} absent
+  //  2) familyIndex/{famHash}      -> needs meta.createdBy/status present
+  //  3) families/{fid}/members/... -> needs meta.createdBy == uid
+  //  4) users/{uid}                -> needs meta.createdBy == uid
+  //  5) loginIndex/{fid}/{memHash} -> needs users/{uid}.fid present
   try {
-    const updates = {};
-    updates[`v3/familyIndex/${famHash}`] = familyRecord;
-    updates[`v3/loginIndex/${fid}/${memHash}`] = loginIndexRecord;
-    updates[`v3/users/${uid}`] = userProfile;
-    updates[`v3/families/${fid}/meta`] = familyMeta;
-    updates[`v3/families/${fid}/members/mem_admin`] = adminMember;
-
-    await dbMod.update(dbMod.ref(db), updates);
+    await dbMod.set(dbMod.ref(db, `v3/families/${fid}/meta`), familyMeta);
+    await dbMod.set(dbMod.ref(db, `v3/familyIndex/${famHash}`), familyRecord);
+    await dbMod.set(dbMod.ref(db, `v3/families/${fid}/members/mem_admin`), adminMember);
+    await dbMod.set(dbMod.ref(db, `v3/users/${uid}`), userProfile);
+    await dbMod.set(dbMod.ref(db, `v3/loginIndex/${fid}/${memHash}`), loginIndexRecord);
   } catch (err) {
     console.error('[auth-v3] RTDB write error during registration:', err);
+    return {
+      ok: false,
+      message: `تعذّر حفظ العائلة في السحابة: ${err?.message || err}. تحقق من الاتصال ثم أعد المحاولة.`,
+      rawError: err,
+    };
   }
 
   // Also cache locally
@@ -368,29 +506,45 @@ export async function registerFamilyRequest({ familyName, ownerName, email, phon
  * Dedicated for Owner (aliazizdbab@gmail.com) and authorized staff members.
  */
 export async function loginStaffWithGoogle() {
-  const { auth, db, authMod, dbMod } = await getFirebaseServices();
+  const { auth, authMod } = await getFirebaseServices();
   const provider = new authMod.GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
 
+  // Use redirect (not popup) for reliability: popups are blocked by many mobile
+  // browsers and in-app webviews. Redirect works everywhere.
   try {
-    const result = await authMod.signInWithPopup(auth, provider);
+    await authMod.signInWithRedirect(auth, provider);
+    // signInWithRedirect navigates away; the result is picked up on return via
+    // finalizeStaffGoogleSignIn() (called from init).
+    return { ok: true, redirect: true };
+  } catch (err) {
+    console.error('[auth-v3] staff Google redirect failed:', err);
+    return { ok: false, message: describeAuthError(err), rawError: err };
+  }
+}
+
+/**
+ * Complete a Google sign-in that was initiated via signInWithRedirect.
+ * Call once on page load (from init). Returns the staff session or null if no
+ * redirect result is pending.
+ */
+export async function finalizeStaffGoogleSignIn() {
+  const { auth, db, authMod, dbMod } = await getFirebaseServices();
+  try {
+    const result = await authMod.getRedirectResult(auth);
+    if (!result || !result.user) return null;
     const user = result.user;
     const email = String(user.email || '').toLowerCase().trim();
     const isOwner = email === OWNER_EMAIL;
 
-    // Check staff permissions in RTDB
     let staffRecord = null;
     try {
-      const staffRef = dbMod.ref(db, `v3/staff/${user.uid}`);
-      const snap = await dbMod.get(staffRef);
-      if (snap.exists()) {
-        staffRecord = snap.val();
-      }
+      const snap = await dbMod.get(dbMod.ref(db, `v3/staff/${user.uid}`));
+      if (snap.exists()) staffRecord = snap.val();
     } catch (err) {
       console.warn('[auth-v3] staff RTDB lookup failed:', err);
     }
 
-    // Auto-bootstrap Owner record if signing in for the first time
     if (isOwner && !staffRecord) {
       staffRecord = {
         email: OWNER_EMAIL,
@@ -406,12 +560,13 @@ export async function loginStaffWithGoogle() {
       }
     }
 
+    if (!isOwner && !staffRecord) {
+      staffRecord = await claimStaffInvite({ db, dbMod, user, cleanEmail: email });
+    }
+
     if (!isOwner && (!staffRecord || staffRecord.disabled)) {
       await authMod.signOut(auth);
-      return {
-        ok: false,
-        message: 'عذراً، هذا الحساب ليس لديه صلاحيات وصول إلى بوابة المبرمج والدعم الفني.',
-      };
+      return null;
     }
 
     const session = {
@@ -423,13 +578,15 @@ export async function loginStaffWithGoogle() {
       uid: user.uid,
       loginAt: Date.now(),
     };
-
     await localStore.setPref('activeStaffSession', session);
-
-    return { ok: true, session, user };
+    return session;
   } catch (err) {
-    console.error('[auth-v3] staff Google sign-in failed:', err);
-    return { ok: false, message: describeAuthError(err), rawError: err };
+    // No pending redirect result — not an error, just nothing to finalize.
+    if (/no-auth-event|redirect-result|null-user/i.test(String(err?.code || ''))) {
+      return null;
+    }
+    console.warn('[auth-v3] finalize Google sign-in error:', err);
+    return null;
   }
 }
 
@@ -462,6 +619,10 @@ export async function loginStaffWithEmail(email, password) {
       console.warn('[auth-v3] staff email check failed:', err);
     }
 
+    if (!isOwner && !staffRecord) {
+      staffRecord = await claimStaffInvite({ db, dbMod, user, cleanEmail });
+    }
+
     if (!isOwner && (!staffRecord || staffRecord.disabled)) {
       await authMod.signOut(auth);
       return {
@@ -485,6 +646,60 @@ export async function loginStaffWithEmail(email, password) {
   } catch (err) {
     console.error('[auth-v3] staff email login failed:', err);
     return { ok: false, message: describeAuthError(err), rawError: err };
+  }
+}
+
+/**
+ * Claim a pending staff invitation: if the signed-in user's email has an invite
+ * in v3/staffInvites, create their v3/staff record with the invited role and
+ * consume the invite. Returns the created record or null.
+ */
+async function claimStaffInvite({ db, dbMod, user, cleanEmail }) {
+  const key = String(cleanEmail || '').toLowerCase().replace(/\./g, ',');
+  if (!key) return null;
+  try {
+    const snap = await dbMod.get(dbMod.ref(db, `v3/staffInvites/${key}`));
+    if (!snap.exists()) return null;
+    const inv = snap.val() || {};
+    const role = ['owner', 'developer', 'support'].includes(inv.role) ? inv.role : 'support';
+    const record = {
+      role,
+      email: cleanEmail,
+      name: (inv.name || '').trim() || cleanEmail.split('@')[0],
+      addedAt: { '.sv': 'timestamp' },
+      disabled: false,
+    };
+    await dbMod.set(dbMod.ref(db, `v3/staff/${user.uid}`), record);
+    try {
+      await dbMod.remove(dbMod.ref(db, `v3/staffInvites/${key}`));
+    } catch {
+      // the invite may already be consumed
+    }
+    return { ...record, addedAt: Date.now() };
+  } catch (err) {
+    console.warn('[auth-v3] claimStaffInvite failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Sign out completely
+ */
+export async function getActiveAuthUid() {
+  try {
+    const { auth } = await getFirebaseServices();
+    // Wait for Firebase to restore the persisted session before reading it;
+    // otherwise a page reload looks "logged out" and clears the staff session.
+    if (auth && typeof auth.authStateReady === 'function') {
+      try {
+        await auth.authStateReady();
+      } catch {
+        // ignore restore failures
+      }
+    }
+    return auth?.currentUser?.uid || null;
+  } catch {
+    return null;
   }
 }
 

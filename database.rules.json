@@ -39,7 +39,7 @@
           "items": {
             "$iid": {
               ".write": "auth != null && root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/off').val() !== true && (root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'admin' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'member' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'mother' || root.child('v2/rooms/' + $rid + '/members/' + auth.uid + '/role').val() === 'developer')",
-              ".validate": "newData.hasChildren(['n', 'q', 'p', 'c', 'u', 'by', 'byName', 'dn', 'dnBy', 'dnAt', 'cl', 'note', 'updatedAt', 'createdAt', 'deleted']) && newData.child('n').isString() && newData.child('n').val().length >= 1 && newData.child('n').val().length <= 80 && newData.child('q').isString() && newData.child('q').val().length <= 40 && newData.child('p').isNumber() && newData.child('p').val() >= 0 && newData.child('c').isString() && newData.child('c').val().length >= 1 && newData.child('c').val().length <= 40 && newData.child('u').isBoolean() && newData.child('by').isString() && newData.child('byName').isString() && newData.child('dn').isBoolean() && newData.child('dnBy').isString() && newData.child('dnAt').isNumber() && newData.child('cl').isString() && newData.child('note').isString() && newData.child('note').val().length <= 240 && newData.child('updatedAt').isNumber() && newData.child('createdAt').isNumber() && newData.child('deleted').isBoolean()"
+              ".validate": "newData.hasChildren(['n', 'q', 'p', 'c', 'u', 'by', 'byName', 'dn', 'dnBy', 'dnAt', 'cl', 'note', 'updatedAt', 'createdAt', 'deleted']) && newData.child('n').isString() && newData.child('n').val().length >= 1 && newData.child('n').val().length <= 80 && newData.child('q').isString() && newData.child('q').val().length <= 40 && newData.child('p').isNumber() && newData.child('p').val() >= 0 && newData.child('c').isString() && newData.child('c').val().length >= 1 && newData.child('c').val().length <= 40 && newData.child('u').isBoolean() && newData.child('by').isString() && newData.child('byName').isString() && newData.child('dn').isBoolean() && newData.child('dnBy').isString() && (newData.child('dnAt').isNumber() || newData.child('dnAt').isString()) && newData.child('cl').isString() && newData.child('note').isString() && newData.child('note').val().length <= 240 && newData.child('updatedAt').isNumber() && newData.child('createdAt').isNumber() && newData.child('deleted').isBoolean()"
             }
           },
           "requests": {
@@ -97,6 +97,7 @@
       "staffInvites": {
         ".read": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true)))",
         "$key": {
+          ".read": "(auth != null && auth.token.email != null && $key == auth.token.email.toLowerCase().replace('.', ','))",
           ".write": "((auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || ((root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) && root.child('v3/staff/' + auth.uid).child('role').val() == 'owner'))) || (auth != null && auth.token.email != null && $key == auth.token.email.toLowerCase().replace('.', ',') && !newData.exists()))",
           ".validate": "(newData.hasChildren(['role', 'invitedAt']) && (newData.child('role').val() == 'owner' || newData.child('role').val() == 'developer' || newData.child('role').val() == 'support'))"
         }
@@ -113,6 +114,7 @@
         }
       },
       "familyIndex": {
+        ".read": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true)))",
         "$hash": {
           ".read": true,
           ".write": "((auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || ((root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) && (root.child('v3/staff/' + auth.uid).child('role').val() == 'owner' || root.child('v3/staff/' + auth.uid).child('role').val() == 'developer')))) || (auth != null && !data.exists() && newData.child('status').val() == 'pending' && root.child('v3/families/' + newData.child('fid').val() + '/meta/createdBy').val() == auth.uid && root.child('v3/families/' + newData.child('fid').val() + '/meta/status').val() == 'pending'))",
@@ -123,8 +125,8 @@
         "$famHash": {
           "$memHash": {
             ".read": true,
-            ".write": "((auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true))) || ((auth != null && (root.child('v3/users/' + auth.uid).exists() && root.child('v3/users/' + auth.uid).child('disabled').val() != true) && root.child('v3/users/' + auth.uid).child('fid').val() == root.child('v3/familyIndex/' + $famHash + '/fid').val() && root.child('v3/families/' + root.child('v3/familyIndex/' + $famHash + '/fid').val() + '/meta/status').val() == 'active') && (root.child('v3/users/' + auth.uid).child('role').val() == 'admin')) || (!data.exists() && root.child('v3/users/' + auth.uid).child('fid').val() == root.child('v3/familyIndex/' + $famHash + '/fid').val() && (auth != null && root.child('v3/families/' + root.child('v3/users/' + auth.uid).child('fid').val() + '/meta/createdBy').val() == auth.uid && root.child('v3/families/' + root.child('v3/users/' + auth.uid).child('fid').val() + '/meta/status').val() == 'pending')))",
-            ".validate": "(newData.hasChildren(['gen', 'fid']) && newData.child('gen').isNumber() && newData.child('gen').val() >= 1 && newData.child('fid').val() == root.child('v3/familyIndex/' + $famHash + '/fid').val())"
+            ".write": "((auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true))) || ((auth != null && (root.child('v3/users/' + auth.uid).exists() && root.child('v3/users/' + auth.uid).child('disabled').val() != true) && root.child('v3/users/' + auth.uid).child('fid').val() == $famHash && root.child('v3/families/' + $famHash + '/meta/status').val() == 'active') && (root.child('v3/users/' + auth.uid).child('role').val() == 'admin')) || (auth != null && !data.exists() && root.child('v3/users/' + auth.uid).child('fid').val() == $famHash && root.child('v3/families/' + $famHash + '/meta/createdBy').val() == auth.uid && root.child('v3/families/' + $famHash + '/meta/status').val() == 'pending'))",
+            ".validate": "(newData.hasChildren(['gen', 'fid']) && newData.child('gen').isNumber() && newData.child('gen').val() >= 1 && newData.child('fid').isString() && newData.child('fid').val() == $famHash)"
           }
         }
       },
@@ -225,12 +227,42 @@
         }
       },
       "audit": {
+        ".read": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true)))",
         "$scope": {
           ".read": "((auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true))) || ((auth != null && (root.child('v3/users/' + auth.uid).exists() && root.child('v3/users/' + auth.uid).child('disabled').val() != true) && root.child('v3/users/' + auth.uid).child('fid').val() == $scope && root.child('v3/families/' + $scope + '/meta/status').val() == 'active') && (root.child('v3/users/' + auth.uid).child('role').val() == 'admin')))",
           "$auditId": {
             ".write": "(!data.exists() && newData.exists() && newData.child('actorUid').val() == auth.uid && ((auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true))) || (auth != null && (root.child('v3/users/' + auth.uid).exists() && root.child('v3/users/' + auth.uid).child('disabled').val() != true) && root.child('v3/users/' + auth.uid).child('fid').val() == $scope && root.child('v3/families/' + $scope + '/meta/status').val() == 'active')))",
             ".validate": "(newData.hasChildren(['at', 'actorUid', 'actorType', 'action']) && newData.child('at').isNumber() && newData.child('at').val() <= now + 60000 && (newData.child('action').isString() && newData.child('action').val().length >= 1 && newData.child('action').val().length <= 80) && (newData.child('actorType').val() == 'staff' || newData.child('actorType').val() == 'family') && !newData.hasChild('accessCode') && !newData.hasChild('password') && !newData.hasChild('salt') && !newData.hasChild('hash') && !newData.hasChild('pin') && !newData.hasChild('key') && !newData.hasChild('apiKey'))"
           }
+        }
+      },
+      "aiConfig": {
+        ".read": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) || (root.child('v3/users/' + auth.uid).exists() && root.child('v3/users/' + auth.uid).child('disabled').val() != true && root.child('v3/families/' + root.child('v3/users/' + auth.uid).child('fid').val() + '/meta/status').val() == 'active')))",
+        ".write": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || ((root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) && (root.child('v3/staff/' + auth.uid).child('role').val() == 'owner' || root.child('v3/staff/' + auth.uid).child('role').val() == 'developer'))))",
+        "global": {
+          ".validate": "(newData.hasChildren(['provider', 'apiKey']) && (newData.child('provider').val() == 'gemini' || newData.child('provider').val() == 'openai' || newData.child('provider').val() == 'anthropic' || newData.child('provider').val() == 'groq' || newData.child('provider').val() == 'deepseek' || newData.child('provider').val() == 'openrouter' || newData.child('provider').val() == 'custom') && (newData.child('provider').val() != 'custom' || (newData.child('url').isString() && newData.child('url').val().length >= 8 && newData.child('url').val().matches(/^https?:\\/\\//))) && newData.child('apiKey').isString() && newData.child('apiKey').val().length >= 8 && newData.child('apiKey').val().length <= 400)"
+        },
+        "families": {
+          "$fid": {
+            ".read": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) || (root.child('v3/users/' + auth.uid).exists() && root.child('v3/users/' + auth.uid).child('disabled').val() != true && root.child('v3/users/' + auth.uid).child('fid').val() == $fid && root.child('v3/families/' + $fid + '/meta/status').val() == 'active')))",
+            ".validate": "(newData.hasChildren(['provider', 'apiKey']) && (newData.child('provider').val() == 'gemini' || newData.child('provider').val() == 'openai' || newData.child('provider').val() == 'anthropic' || newData.child('provider').val() == 'groq' || newData.child('provider').val() == 'deepseek' || newData.child('provider').val() == 'openrouter' || newData.child('provider').val() == 'custom') && (newData.child('provider').val() != 'custom' || (newData.child('url').isString() && newData.child('url').val().length >= 8 && newData.child('url').val().matches(/^https?:\\/\\//))) && newData.child('apiKey').isString() && newData.child('apiKey').val().length >= 8 && newData.child('apiKey').val().length <= 400)"
+          }
+        }
+      },
+      "credentials": {
+        ".read": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || (root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true)))",
+        ".write": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || ((root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) && (root.child('v3/staff/' + auth.uid).child('role').val() == 'owner' || root.child('v3/staff/' + auth.uid).child('role').val() == 'developer'))))",
+        "$fid": {
+          "$mid": {
+            ".validate": "(newData.hasChildren(['pin']) && newData.child('pin').isString() && newData.child('pin').val().length >= 4 && newData.child('pin').val().length <= 64)"
+          }
+        }
+      },
+      "forceUpdate": {
+        "$fid": {
+          ".read": "auth != null",
+          ".write": "(auth != null && ((auth.token.email == 'aliazizdbab@gmail.com' && auth.token.email_verified == true) || ((root.child('v3/staff/' + auth.uid).exists() && root.child('v3/staff/' + auth.uid).child('disabled').val() != true) && (root.child('v3/staff/' + auth.uid).child('role').val() == 'owner' || root.child('v3/staff/' + auth.uid).child('role').val() == 'developer'))))",
+          ".validate": "newData.isNumber() && newData.val() > 0"
         }
       }
     }

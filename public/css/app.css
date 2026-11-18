@@ -1108,3 +1108,340 @@ progress.stitch-progress.instore-progress::-webkit-progress-bar {
   overflow-x: auto;
   max-height: 300px;
 }
+
+/* ==========================================================================
+   Developer portal — standalone app chrome
+   The admin portal is installed as its own PWA; family-only chrome (shopping
+   navigation, family budget strip, family session chips) must not appear.
+   ========================================================================== */
+body[data-portal='developer'] .nav,
+body[data-portal='developer'] #header-budget-row,
+body[data-portal='developer'] .header-bar,
+body[data-portal='developer'] #session-bar,
+body[data-portal='developer'] .dev-portal-link {
+  display: none !important;
+}
+
+body[data-portal='developer'] .header {
+  border-bottom-color: rgba(20, 184, 166, 0.35);
+}
+
+body[data-portal='developer'] .p {
+  padding-bottom: 2rem;
+}
+
+.staff-invite-form {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .staff-invite-form {
+    grid-template-columns: 1.4fr 1fr 0.9fr auto;
+    align-items: end;
+  }
+}
+
+.role-chip-owner { background: rgba(168, 85, 247, 0.16); color: #c084fc; }
+.role-chip-developer { background: rgba(56, 189, 248, 0.16); color: #38bdf8; }
+.role-chip-support { background: rgba(20, 184, 166, 0.16); color: #2dd4bf; }
+
+/* ==========================================================================
+   Responsive auto-layout — both portals
+   Rows wrap instead of overflowing, admin tabs flow into a grid that adapts
+   to any width/orientation, and buttons never squeeze their labels.
+   ========================================================================== */
+.row {
+  flex-wrap: wrap;
+  row-gap: 0.55rem;
+}
+
+.btn {
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+
+/* Admin top bar: identity on one line, actions wrap underneath when tight */
+.admin-topbar {
+  flex-wrap: wrap;
+  row-gap: 0.6rem;
+}
+
+.admin-user-info {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.admin-user-info small {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tabs: adaptive grid (never a cut-off horizontal strip) */
+.admin-nav-tabs.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  gap: 0.5rem;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.admin-nav-tabs button {
+  width: 100%;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* Metrics: fluid cards that reflow by available width */
+.admin-metrics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+}
+
+.metric-card {
+  min-width: 0;
+}
+
+/* Tables scroll inside their card instead of stretching the page */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table {
+  min-width: 620px;
+}
+
+/* Narrow phones: two columns, compact chrome */
+@media (max-width: 430px) {
+  .admin-nav-tabs.row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-topbar {
+    padding: 0.7rem 0.8rem;
+  }
+
+  .nav button {
+    font-size: 0.58rem;
+    padding-inline: 0.02rem;
+  }
+
+  .section-h,
+  h1 {
+    font-size: 1.15rem;
+  }
+}
+
+/* Phone landscape: shorter chrome, denser grids */
+@media (orientation: landscape) and (max-height: 560px) {
+  .header {
+    padding-block: 0.45rem;
+  }
+
+  .admin-nav-tabs.row {
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  }
+
+  .admin-metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  }
+
+  .p {
+    padding-top: 0.6rem;
+  }
+}
+
+/* Very wide screens: keep line lengths readable */
+@media (min-width: 1200px) {
+  .admin-nav-tabs.row {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+/* Table action buttons stay on one line (the table itself scrolls) */
+.admin-table {
+  min-width: 720px;
+}
+
+.admin-table td .row {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 0.35rem;
+}
+
+.admin-topbar > .row:last-child {
+  flex: 0 0 auto;
+}
+
+/* Top bar: stack identity above actions on tablets/phones and landscape */
+@media (max-width: 900px) {
+  .admin-topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-topbar > .row:last-child {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .admin-user-info {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
+/* Status pills inside the light admin top bar (header pills stay white-on-dark) */
+.admin-topbar .status-pill {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+/* AI editor: fluid two/three-column form that reflows on any width */
+.ai-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
+.ai-form-grid .field-box {
+  min-width: 0;
+}
+
+.model-row {
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+}
+
+.models-table td {
+  vertical-align: middle;
+}
+
+.models-table .model-status {
+  white-space: nowrap;
+}
+
+@media (max-width: 430px) {
+  .ai-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-row .btn {
+    padding-inline: 0.6rem;
+  }
+}
+
+/* Models table → cards on phones (no clipped columns) */
+@media (max-width: 820px) {
+  .models-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .models-table thead {
+    display: none;
+  }
+
+  .models-table,
+  .models-table tbody,
+  .models-table tr,
+  .models-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .models-table tr {
+    border: 1px solid var(--bd);
+    border-radius: 0.9rem;
+    padding: 0.65rem 0.8rem;
+    margin-bottom: 0.55rem;
+    background: var(--card);
+  }
+
+  .models-table td {
+    border: 0;
+    padding: 0.18rem 0;
+  }
+
+  .models-table td[data-label]:not([data-label=''])::before {
+    content: attr(data-label) ': ';
+    font-weight: 700;
+    color: var(--mu);
+    font-size: 0.78rem;
+  }
+
+  .models-table td .btn {
+    margin-top: 0.35rem;
+  }
+}
+
+/* Members table: same card treatment as the models table on phones */
+@media (max-width: 820px) {
+  .members-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .members-table thead {
+    display: none;
+  }
+
+  .members-table,
+  .members-table tbody,
+  .members-table tr,
+  .members-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .members-table tr {
+    border: 1px solid var(--bd);
+    border-radius: 0.9rem;
+    padding: 0.65rem 0.8rem;
+    margin-bottom: 0.55rem;
+    background: var(--card);
+  }
+
+  .members-table td {
+    border: 0;
+    padding: 0.18rem 0;
+  }
+
+  .members-table td[data-label]:not([data-label=''])::before {
+    content: attr(data-label) ': ';
+    font-weight: 700;
+    color: var(--mu);
+    font-size: 0.78rem;
+  }
+}
+
+/* Member cards: never clip emails or force a horizontal scrollbar */
+.member-email {
+  word-break: break-all;
+  white-space: normal;
+}
+
+.member-role-select {
+  min-width: 96px;
+}
+
+@media (max-width: 820px) {
+  .cards-on-mobile {
+    overflow-x: visible;
+  }
+
+  .members-table td code,
+  .models-table td {
+    word-break: break-word;
+  }
+}

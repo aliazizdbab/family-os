@@ -138,10 +138,7 @@ export function renderFamilyLoginView(appState) {
       </div>
 
       <div class="login-footer">
-        <div class="portal-switch">
-          <span>أنت مبرمج أو مسؤول دعم فني؟</span>
-          <a href="/developer.html" class="dev-portal-link">👨‍💻 الانتقال لبوابة المبرمجين والإدارة</a>
-        </div>
+        <small class="mu">بوابة العائلات مستقلة تماماً. إدارة المنصة لها تطبيق منفصل يُثبَّت على جهاز فريق الدعم.</small>
       </div>
     </section>
   `;
@@ -177,7 +174,7 @@ export function renderRegisterFamilyView(appState) {
           <label class="field-box">
             <span class="field-lbl">🔑 كلمة مرور المسؤول المؤسس</span>
             <div class="password-wrapper">
-              <input id="reg-admin-pin" class="input grow" type="password" required maxlength="32" dir="ltr" value="${esc(draft.adminPin || '1234')}" placeholder="4 خانات فأكثر" />
+              <input id="reg-admin-pin" class="input grow" type="password" required maxlength="32" dir="ltr" value="${esc(draft.adminPin || '1234')}" placeholder="6 خانات فأكثر" />
               <button type="button" id="toggle-reg-pwd-btn" class="btn g pwd-toggle-btn" title="إظهار/إخفاء">👁️</button>
             </div>
           </label>

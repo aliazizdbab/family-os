@@ -10,7 +10,6 @@ export function renderChatView(appState) {
   const cfg = getOrInitAiConfig();
   const activeProv = getActiveAiProvider(cfg);
   const cloudReady = isAiProviderReady(activeProv);
-  const canConfigureAi = ['developer', 'admin'].includes(appState?.prefs?.currentRole || 'admin');
   const usedToday = Number(appState?.aiUsageCount) || 0;
   const messages = Array.isArray(appState?.chatMessages) ? appState.chatMessages : [];
 
@@ -18,12 +17,11 @@ export function renderChatView(appState) {
     ? `<span class="badge-ok">☁️ ${esc(activeProv.name)} (${esc(activeProv.model)})</span>`
     : '<span class="badge-ok">⚡ المساعد المحلي الذكي مفعّل</span>';
 
+  // AI providers/keys are managed centrally by the platform owner in the admin
+  // portal — families never see provider settings.
   const setupHintHtml = cloudReady
     ? ''
-    : canConfigureAi
-      ? `<p class="mu">يعمل المساعد فوراً بدون مفتاح API (إضافة ذكية، حذف بتأكيد، مهام، ميزانية، واقتراح وجبات). ولربط Gemini المجاني أو OpenAI، اضغط على الإعدادات أدناه:</p>
-         <button type="button" id="ai-goto-settings-btn" class="btn g">⚙️ ضبط مزود الذكاء الاصطناعي ومفاتيح API</button>`
-      : '<p class="mu">يعمل المساعد المحلي الذكي الآن لخدمتك في المقاضي والمهام والميزانية.</p>';
+    : '<p class="mu">يعمل المساعد المحلي الذكي الآن لخدمتك في المقاضي والمهام والميزانية. عند تفعيل المساعد السحابي من إدارة المنصة سيظهر هنا تلقائياً.</p>';
 
   const messagesHtml = messages.length
     ? messages

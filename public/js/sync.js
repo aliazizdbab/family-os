@@ -1,6 +1,6 @@
 import { TOMBSTONE_TTL_MS, compareLww, mergeEntity } from './schema.js';
 import { DEFAULT_RTDB_URL, notifyState, refreshLocalSnapshot, state } from './state.js';
-import { initFirebaseAuth, resolveFirebaseConfig, signInAnonymouslyIfConfigured } from './auth.js';
+import { initFirebaseAuth, resolveFirebaseConfig, getAuthenticatedServices } from './auth.js';
 import { localStore } from './store-idb.js';
 
 const FIREBASE_DB_CDN = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-database.js';
@@ -16,6 +16,28 @@ export const SYNC_COLLECTIONS = Object.freeze([
 ]);
 
 export const LWW_COLLECTIONS = new Set(['cats', 'items', 'requests', 'tasks']);
+
+/**
+ * Produce a plain, acyclic, RTDB-safe copy of a value.
+ * The local room meta can accidentally hold references back to itself
+ * (e.g. meta.room === meta), which makes RTDB writes fail with a depth/cycle
+ * error. Deep-copy only JSON-safe primitives, skipping self references.
+ */
+export function sanitizeForRtdb(value, seen = new WeakSet()) {
+  if (value === null || typeof value !== 'object') return value;
+  if (seen.has(value)) return undefined;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.map((v) => sanitizeForRtdb(v, seen)).filter((v) => v !== undefined);
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (k === 'room' || k === 'id') continue;
+    const clean = sanitizeForRtdb(v, seen);
+    if (clean !== undefined) out[k] = clean;
+  }
+  return out;
+}
 
 export function getSyncBadgeLabel(
   syncState = state.syncStatus,
@@ -56,6 +78,20 @@ export class SyncEngine {
 
   isOnline() {
     return globalThis.navigator ? Boolean(globalThis.navigator.onLine) : true;
+  }
+
+  /**
+   * Resolve Firebase services using the LIVE authenticated family/staff identity.
+   * The sync engine must never sign in anonymously: anonymous users are not room
+   * members, so every write would be rejected by the security rules and the
+   * outbox would stay pending forever.
+   */
+  async authServices() {
+    const services = await getAuthenticatedServices();
+    if (!services.ok) {
+      throw new Error(services.reason === 'no-auth-session' ? 'Firebase Auth session not ready' : services.reason || 'firebase-unavailable');
+    }
+    return services;
   }
 
   async refreshPendingCount() {
@@ -219,11 +255,8 @@ export class SyncEngine {
 
     let flushed = 0;
     try {
-      const authRes = await signInAnonymouslyIfConfigured({
-        useEmulator: this.useEmulator,
-        rtdbUrl: this.rtdbUrl,
-      });
-      if (!authRes.ok || !authRes.db || !authRes.dbMod) {
+      const authRes = await this.authServices();
+      if (!authRes || !authRes.db || !authRes.dbMod) {
         throw new Error('Firebase Database not ready');
       }
 
@@ -235,6 +268,26 @@ export class SyncEngine {
         if (entry.collection === '__room__') {
           const docRef = dbMod.ref(db, `v2/rooms/${this.roomId}/${entry.entityId}`);
           await dbMod.set(docRef, entry.payload);
+          await this.store.removeOutbox(entry.opId);
+          flushed += 1;
+          continue;
+        }
+
+        // The room meta entity ("meta"/"room") maps to v2/rooms/{id}/meta, not
+        // .../meta/room, and its local payload may hold cyclic references.
+        if (entry.collection === 'meta') {
+          const targetRef = dbMod.ref(db, `v2/rooms/${this.roomId}/meta`);
+          const clean = sanitizeForRtdb(entry.payload);
+          // Preserve the server-side invite token: the client meta payload does
+          // not carry it, and overwriting would silently invalidate invitations.
+          try {
+            const remoteSnap = await dbMod.get(targetRef);
+            const remoteInvite = remoteSnap.exists() ? remoteSnap.val()?.invite : null;
+            if (remoteInvite && !clean.invite) clean.invite = remoteInvite;
+          } catch {
+            // ignore read issues
+          }
+          await dbMod.set(targetRef, clean);
           await this.store.removeOutbox(entry.opId);
           flushed += 1;
           continue;
@@ -334,12 +387,16 @@ export class SyncEngine {
     this.started = true;
     await this.refreshPendingCount();
 
-    const authRes = await signInAnonymouslyIfConfigured({
-      useEmulator: this.useEmulator,
-      rtdbUrl: this.rtdbUrl,
-    });
-    if (!authRes.ok || !authRes.db || !authRes.dbMod) {
-      return { ok: false, reason: authRes.reason || 'db-unavailable' };
+    let authRes;
+    try {
+      authRes = await this.authServices();
+    } catch (err) {
+      this.started = false;
+      return { ok: false, reason: err?.message || 'auth-unavailable' };
+    }
+    if (!authRes.db || !authRes.dbMod) {
+      this.started = false;
+      return { ok: false, reason: 'db-unavailable' };
     }
 
     const { db, dbMod } = authRes;

@@ -1,7 +1,6 @@
 import { esc } from './dialogs.js';
 import { DEFAULT_ACCENT, DEFAULT_FAMILY_MEMBERS } from '../schema.js';
 import { buildInviteUrl } from '../auth.js';
-import { getEditedAiProvider, getOrInitAiConfig, isAiProviderReady } from '../ai.js';
 import { getSortedActiveCategories, getActiveItemsList, computeBudgetSummary } from './list.js';
 
 export const ROLE_LABELS = Object.freeze({
@@ -677,84 +676,6 @@ function renderDeveloperSupportPortalCard(appState) {
     </section>`;
 }
 
-export function renderAiSettingsCard(appState) {
-  const cfg = getOrInitAiConfig();
-  const edited = getEditedAiProvider(cfg);
-  const ready = isAiProviderReady(edited);
-  const models = Array.isArray(edited?.models) ? edited.models : [];
-
-  return `
-    <section class="sec stack" id="ai-settings-sec">
-      <div class="row">
-        <h3>🤖 إعدادات مزوّد الذكاء الاصطناعي ومفاتيح API</h3>
-        <span class="${ready ? 'badge-ok' : 'badge-warn'}">${ready ? 'مفتاح جاهز للجلسة' : 'يعمل بالوضع المحلي'}</span>
-      </div>
-      <p class="mu">المفتاح يُحفظ في ذاكرة الجلسة المؤقتة للمتصفح فقط ولا يُرفع إلى المستودع أو قاعدة البيانات.</p>
-
-      <div class="chips">
-        ${cfg.ps
-          .map(
-            (p) => `
-          <button
-            type="button"
-            class="btn ${p.id === edited?.id ? '' : 'g'}"
-            data-ai-prov-select="${esc(p.id)}"
-          >${esc(p.name)}${p.id === cfg.on ? ' ✓' : ''}</button>`
-          )
-          .join('')}
-      </div>
-
-      <div class="g2">
-        <label class="field-box">
-          <span class="field-lbl">🏷️ اسم المزوّد</span>
-          <input id="ai-prov-name" class="input" value="${esc(edited?.name || '')}" />
-        </label>
-        <label class="field-box">
-          <span class="field-lbl">⚙️ النوع</span>
-          <select id="ai-prov-type" class="select">
-            <option value="gemini" ${edited?.type === 'gemini' ? 'selected' : ''}>Google Gemini</option>
-            <option value="openai" ${edited?.type === 'openai' ? 'selected' : ''}>OpenAI Compatible</option>
-            <option value="anthropic" ${edited?.type === 'anthropic' ? 'selected' : ''}>Anthropic Claude</option>
-          </select>
-        </label>
-      </div>
-
-      <label class="field-box">
-        <span class="field-lbl">🔗 رابط API Base URL</span>
-        <input id="ai-prov-url" class="input" dir="ltr" value="${esc(edited?.url || '')}" />
-      </label>
-
-      <div class="g2">
-        <label class="field-box">
-          <span class="field-lbl">🧠 الموديل</span>
-          <input id="ai-prov-model" class="input" dir="ltr" list="ai-models-datalist" value="${esc(edited?.model || '')}" />
-        </label>
-        <label class="field-box">
-          <span class="field-lbl">🔑 مفتاح API (اختياري)</span>
-          <input
-            id="ai-prov-key"
-            class="input"
-            type="password"
-            dir="ltr"
-            autocomplete="off"
-            value="${esc(edited?.key || '')}"
-            placeholder="AIza... أو sk-..."
-          />
-        </label>
-      </div>
-      <datalist id="ai-models-datalist">
-        ${models.map((m) => `<option value="${esc(m)}">`).join('')}
-      </datalist>
-
-      <div class="g2">
-        <button type="button" id="ai-save-prov-btn" class="btn">💾 حفظ وتفعيل المزوّد</button>
-        <button type="button" id="ai-test-prov-btn" class="btn g">🔌 اختبار الاتصال</button>
-      </div>
-      <button type="button" id="ai-scan-models-btn" class="btn g full">🔍 فحص موديلات Gemini المجانية</button>
-      <pre id="ai-test-result" class="chat-pre mu">${esc(appState?.aiTestOutput || '')}</pre>
-    </section>`;
-}
-
 export function renderUnifiedSettingsView(appState, colors, pinLockEnabled = false) {
   const role = appState.prefs.currentRole || 'admin';
   const isDev = role === 'developer';
@@ -775,7 +696,6 @@ export function renderUnifiedSettingsView(appState, colors, pinLockEnabled = fal
     ${renderThemeSettingsCard(appState.prefs, colors, pinLockEnabled)}
     ${isAdminOrDev ? renderFamilyMembersManagerCard(appState) : ''}
     ${canManageBudgetAndCats ? renderCategoriesAndBudgetCard(appState) : ''}
-    ${isAdminOrDev ? renderAiSettingsCard(appState) : ''}
     ${
       isAdminOrDev
         ? `${renderRoomAndAuthCard(appState)}

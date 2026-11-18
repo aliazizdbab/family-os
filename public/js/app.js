@@ -12,6 +12,7 @@ import {
   createTask,
 } from './schema.js';
 import {
+  APP_VERSION,
   DEFAULT_ROOM_ID,
   DEFAULT_RTDB_URL,
   refreshLocalSnapshot,
@@ -59,13 +60,21 @@ import {
 import {
   loginStaffWithGoogle,
   loginStaffWithEmail,
+  finalizeStaffGoogleSignIn,
+  loginFamilyMember,
+  registerFamilyRequest,
+  getActiveAuthUid,
+  getFirebaseServices,
   signOutActiveUser,
 } from './auth-v3.js';
+import { memberNameHash } from './identity.js';
 import {
   renderFamilyLoginView,
 } from './ui/login-portal.js';
 import {
   renderDeveloperLoginView,
+  renderAdminDashboard,
+  renderModelsTable,
 } from './ui/admin-portal.js';
 import {
   fetchAdminDashboardData,
@@ -74,6 +83,20 @@ import {
   deleteFamilyRecord,
   saveFamilyFeatureFlags,
   resetMemberCredentialGeneration,
+  saveStaffInvite,
+  revokeStaffInvite,
+  setStaffDisabled,
+  removeStaffMember,
+  saveAiConfig,
+  clearAiConfig,
+  testAiConfig,
+  listModelsForConfig,
+  testModelForConfig,
+  setMemberAccess,
+  setMemberPin,
+  setMemberRole,
+  addFamilyMemberByStaff,
+  forceFamilyUpdate,
 } from './admin-controller.js';
 
 let cachedAdminData = null;
@@ -91,11 +114,8 @@ import {
   callAiProvider,
   getActiveAiProvider,
   getDailyAiUsage,
-  getEditedAiProvider,
-  getOrInitAiConfig,
   incrementDailyAiUsage,
   isAiProviderReady,
-  setRuntimeAiConfig,
 } from './ai.js';
 import {
   CONFIRM_REQUIRED_AI_ACTIONS,
@@ -104,7 +124,7 @@ import {
   parseAiEnvelope,
   runLocalSmartAssistant,
 } from './ai-actions.js';
-import { scanProviderModels } from './models-scan.js';
+import { loadEffectiveAiConfig } from './ai-config.js';
 
 export { esc };
 
@@ -129,7 +149,14 @@ function applyTheme() {
   root.style.setProperty('--fs', `${state.prefs.fontSize || 16}px`);
   root.dataset.theme = state.prefs.dark ? 'dark' : '';
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.content = state.prefs.accent || DEFAULT_ACCENT;
+  // The admin portal is a separate app with its own identity colour; never let
+  // the family accent (teal) repaint its browser chrome.
+  if (metaTheme) {
+    metaTheme.content =
+      document.body?.dataset?.portal === 'developer'
+        ? '#111827'
+        : state.prefs.accent || DEFAULT_ACCENT;
+  }
 }
 
 function updateNetworkStatus() {
@@ -223,18 +250,6 @@ async function registerFamilyCode(famCode, displayName = '') {
   }
 }
 
-function resolveRoomInput(rawInput) {
-  const clean = String(rawInput || '').trim();
-  if (!clean) return '';
-  const namesMap = state.prefs.familyNamesByRoom || {};
-  const norm = clean.toLowerCase();
-  const matched = Object.entries(namesMap).find(
-    ([rid, fname]) =>
-      rid.toLowerCase() === norm || String(fname || '').trim().toLowerCase() === norm
-  );
-  return matched ? matched[0] : clean;
-}
-
 async function switchFamilyRoom(newRoomId, displayName = '') {
   const clean = String(newRoomId || '').trim() || DEFAULT_ROOM_ID;
   if (activeSyncEngine) {
@@ -274,6 +289,27 @@ async function recordActivityLog(action, target) {
   }
   state.localSnapshot.log[id] = entry;
   await localStore.putEntity(state.roomId, 'log', id, entry);
+}
+
+/**
+ * Start (or restart) the live SyncEngine for the current room.
+ * Called automatically after a successful family login so that data syncs
+ * without requiring the user to press the manual "start sync" button (RC2).
+ */
+async function startSyncForCurrentRoom() {
+  if (activeSyncEngine) {
+    activeSyncEngine.stop();
+    activeSyncEngine = null;
+  }
+  activeSyncEngine = new SyncEngine({
+    roomId: state.roomId,
+    store: localStore,
+    useEmulator: state.prefs.useEmulator,
+    rtdbUrl: state.prefs.rtdbUrl,
+  });
+  const res = await activeSyncEngine.start();
+  await refreshSnapshot();
+  return res;
 }
 
 function updateHeaderTotals() {
@@ -503,6 +539,17 @@ function render() {
   if (state.isDeveloperPortal && (!state.session.loggedIn || !state.session.isDeveloper)) {
     root.innerHTML = renderDeveloperLoginView(state);
     bindViewEvents();
+    return;
+  }
+
+  // Developer portal: once authenticated, show the centralized admin dashboard
+  // (families management, approvals, RBAC, audit logs) — NOT the regular family UI.
+  if (state.isDeveloperPortal && state.session.isDeveloper) {
+    if (!cachedAdminData) {
+      cachedAdminData = { families: [], staffSession: state.session, activeTab: 'families' };
+    }
+    root.innerHTML = renderAdminDashboard(cachedAdminData);
+    bindAdminDashboardEvents();
     return;
   }
 
@@ -925,11 +972,6 @@ async function handleSendAiMessage(rawInput) {
 }
 
 function bindAiEvents() {
-  document.getElementById('ai-goto-settings-btn')?.addEventListener('click', () => {
-    state.tab = 'prefs';
-    render();
-  });
-
   document.querySelectorAll('[data-ai-prompt]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const prompt = btn.getAttribute('data-ai-prompt') || '';
@@ -1014,77 +1056,100 @@ function bindAiEvents() {
     });
   });
 
-  document.querySelectorAll('[data-ai-prov-select]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const cfg = getOrInitAiConfig();
-      cfg.ed = btn.getAttribute('data-ai-prov-select') || cfg.on;
-      setRuntimeAiConfig(cfg);
-      render();
+}
+
+/** A family member disabled by the platform must lose an already-restored session. */
+async function verifySessionStillAllowed(session) {
+  const fid = session?.fid;
+  const memberName = session?.memberName;
+  if (!fid || !memberName) return true;
+  try {
+    const { db, dbMod } = await getFirebaseServices();
+    const memHash = await memberNameHash(memberName);
+    const snap = await dbMod.get(dbMod.ref(db, `v3/loginIndex/${fid}/${memHash}/off`));
+    if (snap.exists() && snap.val() === true) {
+      showToast('⛔ تم إيقاف وصولك إلى هذه العائلة — تواصل مع إدارة المنصة');
+      return false;
+    }
+  } catch {
+    // Offline: keep the local session so the app still works without a network.
+  }
+  return true;
+}
+
+/**
+ * Small promise-based input dialog (replaces window.prompt, which is blocked in
+ * installed PWAs and disallowed by lint).
+ */
+function askForPin(message) {
+  return new Promise((resolve) => {
+    const root = document.getElementById('dialog-root');
+    if (!root) {
+      resolve(null);
+      return;
+    }
+    const ov = document.createElement('div');
+    ov.className = 'dialog-ov';
+    ov.innerHTML = `
+      <div class="dialog-box stack" role="dialog" aria-modal="true">
+        <p>${message}</p>
+        <input id="dlg-pin-input" class="input" dir="ltr" inputmode="numeric" maxlength="32" />
+        <div class="row">
+          <button type="button" class="btn g" data-dlg="no">إلغاء</button>
+          <button type="button" class="btn" data-dlg="yes">حفظ</button>
+        </div>
+      </div>`;
+    const input = ov.querySelector('#dlg-pin-input');
+    const close = (value) => {
+      ov.remove();
+      resolve(value);
+    };
+    ov.querySelector('[data-dlg="no"]').addEventListener('click', () => close(null));
+    ov.querySelector('[data-dlg="yes"]').addEventListener('click', () => {
+      const val = input.value.trim();
+      close(val || null);
     });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') close(input.value.trim() || null);
+    });
+    root.appendChild(ov);
+    input.focus();
   });
+}
 
-  const readAiForm = () => ({
-    name: document.getElementById('ai-prov-name')?.value?.trim() || 'مزود',
-    type: document.getElementById('ai-prov-type')?.value || 'gemini',
-    url: document.getElementById('ai-prov-url')?.value?.trim().replace(/\/+$/, '') || '',
-    model: document.getElementById('ai-prov-model')?.value?.trim() || '',
-    key: document.getElementById('ai-prov-key')?.value?.trim() || '',
-  });
-
-  document.getElementById('ai-save-prov-btn')?.addEventListener('click', () => {
-    const cfg = getOrInitAiConfig();
-    const prov = getEditedAiProvider(cfg);
-    if (!prov) return;
-    Object.assign(prov, readAiForm());
-    cfg.on = prov.id;
-    cfg.ed = prov.id;
-    setRuntimeAiConfig(cfg);
-    state.aiTestOutput = `✅ تم حفظ وتفعيل «${prov.name}» للجلسة الحالية.`;
-    showToast(`🤖 تم تفعيل ${prov.name}`);
-    render();
-  });
-
-  document.getElementById('ai-test-prov-btn')?.addEventListener('click', async () => {
-    const formProv = readAiForm();
-    state.aiTestOutput = '⏳ جارٍ اختبار الاتصال...';
-    render();
-    const startedAt = Date.now();
+/**
+ * Owner-triggered forced update: the dev portal stamps meta.forceUpdateAt; the
+ * family app clears its Service Worker cache and reloads once when it sees a
+ * newer stamp.
+ */
+async function checkForcedUpdate(fid) {
+  if (!fid) return;
+  try {
+    const { db, dbMod } = await getFirebaseServices();
+    const snap = await dbMod.get(dbMod.ref(db, `v3/forceUpdate/${fid}`));
+    const stamp = snap.exists() ? Number(snap.val()) || 0 : 0;
+    if (!stamp) return;
+    const KEY = 'familyos.forcedUpdate';
+    const seen = Number(globalThis.localStorage?.getItem(KEY) || 0);
+    if (stamp <= seen) return;
+    globalThis.localStorage?.setItem(KEY, String(stamp));
+    showToast('🔄 تحديث إجباري من إدارة المنصة — جارٍ إعادة التحميل...');
     try {
-      const reply = await callAiProvider(
-        formProv,
-        'Reply with the single word OK.',
-        [{ role: 'user', content: 'ping' }],
-        { maxTokens: 20, timeoutMs: 12000 }
-      );
-      state.aiTestOutput = `✅ نجح الاتصال (${Date.now() - startedAt}ms): ${reply.trim().slice(0, 60)}`;
-    } catch (err) {
-      state.aiTestOutput = `❌ فشل الاختبار: ${err?.message || 'خطأ غير معروف'}`;
-    }
-    render();
-  });
-
-  document.getElementById('ai-scan-models-btn')?.addEventListener('click', async () => {
-    const cfg = getOrInitAiConfig();
-    const prov = getEditedAiProvider(cfg);
-    const formProv = { ...prov, ...readAiForm() };
-    state.aiTestOutput = '⏳ جارٍ فحص وجلب الموديلات المتاحة...';
-    render();
-    try {
-      const scanned = await scanProviderModels(formProv, { probeWorking: true });
-      if (prov) {
-        prov.models = scanned.models;
-        if (scanned.recommendedModel) prov.model = scanned.recommendedModel;
-        setRuntimeAiConfig(cfg);
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
       }
-      state.aiTestOutput =
-        scanned.models.length > 0
-          ? `✅ عُثر على ${scanned.models.length} موديل (الموصى به: ${scanned.recommendedModel})`
-          : '⚠️ لم يتم العثور على موديلات مطابقة.';
-    } catch (err) {
-      state.aiTestOutput = `❌ تعذّر الفحص: ${err?.message || 'خطأ غير معروف'}`;
+      if (globalThis.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch {
+      // continue to reload anyway
     }
-    render();
-  });
+    setTimeout(() => window.location.reload(), 800);
+  } catch {
+    // ignore (offline / permission)
+  }
 }
 
 function bindViewEvents() {
@@ -1098,70 +1163,94 @@ function bindViewEvents() {
         state.roomId ||
         'family-v2-local'
       ).trim();
-      const famRoomId = resolveRoomInput(rawFam);
-      if (!famRoomId) {
-        showToast('⚠️ أدخل اسم أو كود العائلة أولاً');
-        return;
-      }
-      if (famRoomId !== state.roomId) {
-        await switchFamilyRoom(famRoomId);
-      } else {
-        await registerFamilyCode(state.roomId, state.localSnapshot?.meta?.name || '');
-      }
-
-      const members = getEffectiveMembersList(state.localSnapshot);
       const usernameInput = (
         document.getElementById('login-username-inp')?.value ||
         document.getElementById('fam-login-member-name')?.value ||
         ''
       ).trim();
-
-      let chosen = null;
-      if (usernameInput) {
-        const normUser = usernameInput.toLowerCase();
-        chosen =
-          members.find((m) => String(m.name || '').trim().toLowerCase() === normUser) ||
-          members.find((m) => String(m.name || '').trim().toLowerCase().includes(normUser));
-      }
-      if (!chosen) {
-        chosen = members.find((m) => m.id === state.loginSelectedMemberId) || members[0] || {
-          id: 'mem_father',
-          name: usernameInput || 'الأب',
-          role: 'admin',
-        };
-      }
-
       const enteredPin = (
         document.getElementById('login-pin-inp')?.value ||
         document.getElementById('fam-login-password')?.value ||
         ''
       ).trim();
 
-      if (chosen.accessCode && enteredPin && enteredPin !== String(chosen.accessCode).trim()) {
-        showToast('❌ الرقم السري غير صحيح لهذا المستخدم');
+      if (!rawFam) {
+        showToast('⚠️ أدخل اسم أو كود العائلة أولاً');
+        return;
+      }
+      if (!usernameInput) {
+        showToast('⚠️ أدخل اسم الفرد في العائلة أولاً');
+        return;
+      }
+      if (!enteredPin) {
+        showToast('⚠️ أدخل كلمة المرور أولاً');
         return;
       }
 
-      const finalMemberName = usernameInput || chosen.name || 'عضو';
+      // Authenticate through Firebase (v3 family index + synthetic Auth email).
+      // loginFamilyMember falls back to a local offline session itself when the
+      // network/auth is unavailable, so this single call covers both online and
+      // offline-first operation.
+      const res = await loginFamilyMember({
+        familyName: rawFam,
+        memberName: usernameInput,
+        password: enteredPin,
+      });
+      if (!res.ok) {
+        showToast(`❌ ${res.message || 'تعذّر تسجيل الدخول'}`);
+        return;
+      }
+
+      // Derive the room from the authenticated family id, never from free text.
+      const authenticatedRoomId = res.session.fid;
+      if (activeSyncEngine) {
+        activeSyncEngine.stop();
+        activeSyncEngine = null;
+      }
+      state.roomId = authenticatedRoomId;
       state.session = {
         loggedIn: true,
-        fid: state.roomId,
-        memberId: chosen.id,
-        memberName: finalMemberName,
-        role: chosen.role || 'admin',
-        isDeveloper: chosen.role === 'developer',
+        fid: authenticatedRoomId,
+        memberId: res.session.memberId,
+        memberName: res.session.memberName,
+        role: res.session.role,
+        uid: res.session.uid,
+        isDeveloper: false,
       };
-      state.prefs.currentRole = chosen.role || 'admin';
-      state.prefs.memberName = finalMemberName;
-      applyMemberPersonalTheme(chosen.id);
+      state.prefs.currentRole = res.session.role || 'admin';
+      state.prefs.memberName = res.session.memberName;
       await localStore.setPref('theme', state.prefs);
       await saveSessionState();
-      await recordActivityLog('تسجيل دخول', chosen.name);
+      await registerFamilyCode(authenticatedRoomId, res.session.familyName || rawFam);
+      await refreshSnapshot();
+      // Families no longer configure AI keys themselves; load the platform's
+      // global/per-family configuration (owner-managed in the dev portal).
+      try {
+        await loadEffectiveAiConfig(authenticatedRoomId);
+      } catch {
+        // AI stays in local mode if config is unavailable
+      }
+      void checkForcedUpdate(authenticatedRoomId);
+      // Sync is best-effort: a rules/network failure must NOT block entering the
+      // app. Enter the family space and surface a warning instead of doing nothing.
+      try {
+        await startSyncForCurrentRoom();
+      } catch (syncErr) {
+        console.warn('Sync start failed:', syncErr);
+        showToast('⚠️ تم الدخول، لكن المزامنة السحابية غير متاحة الآن');
+      }
+      try {
+        await recordActivityLog('تسجيل دخول', res.session.memberName);
+      } catch {
+        // activity log is non-critical
+      }
       state.tab = 'home';
-      showToast(`🔓 أهلاً بك ${chosen.name}`);
+      showToast(`🔓 أهلاً بك ${res.session.memberName}`);
       render();
     } catch (err) {
       console.error('Login error:', err);
+      showToast(`❌ خطأ غير متوقع أثناء الدخول: ${err?.message || err}`);
+      render();
     }
   };
 
@@ -1279,7 +1368,27 @@ function bindViewEvents() {
       return;
     }
 
-    await switchFamilyRoom(pending.roomId, pending.familyName);
+    // 1) REAL cloud registration (creates the Firebase Auth user + v3 records).
+    // Without this the family exists only in this device's IndexedDB and will
+    // never sync to other phones. Errors are surfaced instead of swallowed.
+    showToast('⏳ جارٍ إنشاء حساب العائلة في السحابة...');
+    const regRes = await registerFamilyRequest({
+      familyName: pending.familyName,
+      ownerName: pending.adminName,
+      email: pending.email,
+      phone: '',
+      password: pending.adminPin,
+    });
+    if (!regRes.ok) {
+      showToast(`❌ ${regRes.message}`);
+      state.loginMode = 'verify';
+      render();
+      return;
+    }
+
+    const realFid = regRes.fid || pending.roomId;
+
+    await switchFamilyRoom(realFid, pending.familyName);
 
     // Persist founder member with their custom chosen name & PIN
     const founderMember = {
@@ -1311,12 +1420,12 @@ function bindViewEvents() {
     state.loginMode = 'login';
 
     const regFam = {
-      hash: pending.roomId,
-      fid: pending.roomId,
+      hash: realFid,
+      fid: realFid,
       name: pending.familyName,
       ownerEmail: pending.email,
       ownerName: pending.adminName,
-      status: 'active',
+      status: 'pending',
       features: { store: true, tasks: true, maint: true, ai: true, import: true },
       createdAt: Date.now(),
     };
@@ -1327,59 +1436,62 @@ function bindViewEvents() {
     }
 
     state.pendingVerification = null;
-    await registerFamilyCode(state.roomId, pending.familyName);
+    await registerFamilyCode(realFid, pending.familyName);
     await saveSessionState();
     state.tab = 'home';
-    showToast(`✅ تم تأكيد تسجيل «${pending.familyName}» بنجاح!`);
+    showToast(
+      `✅ تم تسجيل «${pending.familyName}» في السحابة. الحساب بانتظار اعتماد الإدارة من بوابة المبرمج.`
+    );
     render();
   });
 
   // --- v3 Staff & Developer Portal Events ---
   document.getElementById('login-dev-btn')?.addEventListener('click', async () => {
-    state.session = {
-      loggedIn: true,
-      memberId: 'dev_support',
-      isDeveloper: true,
-      staffRole: 'owner',
-      staffName: 'المبرمج (الدعم الفني)',
-      email: 'aliazizdbab@gmail.com',
-    };
-    state.prefs.currentRole = 'developer';
-    state.prefs.memberName = 'المبرمج (الدعم الفني)';
-    await saveSessionState();
+    const devUser = document.getElementById('login-dev-user')?.value?.trim() || '';
+    const devPin = document.getElementById('login-dev-pin')?.value || '';
+    const errBox = document.getElementById('admin-login-error');
+    if (errBox) errBox.hidden = true;
+
+    // The developer portal requires a REAL Firebase Auth session (owner or staff)
+    // so that database rules (v3/staff or owner email) authorize reads/writes.
+    // A local-only session would silently fail every family/approval action.
+    const res = await loginStaffWithEmail(devUser, devPin);
+    if (!res.ok) {
+      if (errBox) {
+        errBox.textContent = res.message;
+        errBox.hidden = false;
+      } else {
+        showToast(`❌ ${res.message}`);
+      }
+      return;
+    }
+    state.session = res.session;
+    showToast(`👨‍💻 تم الدخول إلى بوابة المبرمج الشاملة`);
     try {
       cachedAdminData = await fetchAdminDashboardData();
     } catch {
       // offline or emulator fallback
     }
     state.tab = 'prefs';
-    showToast('👨‍💻 تم الدخول إلى بوابة المبرمج الشاملة');
     render();
   });
 
-  document.getElementById('dev-add-family-btn')?.addEventListener('click', async () => {
-    const newCode = document.getElementById('dev-new-family-inp')?.value?.trim();
-    if (!newCode) return;
-    await registerFamilyCode(newCode, newCode);
-    await switchFamilyRoom(newCode, newCode);
-    try {
-      cachedAdminData = await fetchAdminDashboardData();
-    } catch {
-      // offline fallback
-    }
-    showToast(`✅ تمت إضافة عائلة «${newCode}» بنجاح!`);
-    render();
-  });
 
   document.getElementById('admin-google-login-btn')?.addEventListener('click', async () => {
     const res = await loginStaffWithGoogle();
-    if (!res.ok) {
+    // redirect mode navigates away — nothing more to do until the page reloads
+    if (res && res.redirect) {
+      showToast('🌐 جارٍ تحويلك إلى Google لإكمال الدخول...');
+      return;
+    }
+    if (!res || !res.ok) {
       const errBox = document.getElementById('admin-login-error');
+      const msg = res?.message || 'تعذّر تسجيل الدخول.';
       if (errBox) {
-        errBox.textContent = res.message;
+        errBox.textContent = msg;
         errBox.hidden = false;
       } else {
-        showToast(`❌ ${res.message}`);
+        showToast(`❌ ${msg}`);
       }
       return;
     }
@@ -1477,15 +1589,19 @@ function bindViewEvents() {
   });
 
   document.querySelectorAll('[data-action="delete-family"]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const fid = btn.getAttribute('data-fid');
       const name = btn.getAttribute('data-name');
-      showConfirmDialog(`هل أنت متأكد من حذف عائلة «${name}» نهائياً من قاعدة البيانات؟`, async () => {
-        await deleteFamilyRecord(fid, name);
-        showToast(`🗑️ تم حذف عائلة «${name}»`);
-        cachedAdminData = await fetchAdminDashboardData();
-        render();
-      });
+      // showConfirmDialog returns a Promise<boolean> — it does NOT take a callback.
+      const confirmed = await showConfirmDialog(
+        `هل أنت متأكد من حذف عائلة «${name}» نهائياً من قاعدة البيانات؟`,
+        { confirmText: '🗑️ حذف نهائي', cancelText: 'إلغاء' }
+      );
+      if (!confirmed) return;
+      await deleteFamilyRecord(fid, name);
+      showToast(`🗑️ تم حذف عائلة «${name}»`);
+      cachedAdminData = await fetchAdminDashboardData();
+      render();
     });
   });
 
@@ -2608,18 +2724,7 @@ function bindViewEvents() {
   });
 
   document.getElementById('start-sync-btn')?.addEventListener('click', async () => {
-    if (activeSyncEngine) activeSyncEngine.stop();
-    activeSyncEngine = new SyncEngine({
-      roomId: state.roomId,
-      store: localStore,
-      useEmulator: state.prefs.useEmulator,
-      rtdbUrl: state.prefs.rtdbUrl,
-    });
-    showToast('🔄 جارٍ تشغيل محرك المزامنة الحية...');
-    const res = await activeSyncEngine.start();
-    await refreshSnapshot();
-    showToast(res.ok ? '🟢 محرك المزامنة متصل ويعمل' : '🟡 المزامنة في وضع الاستعداد المحلي');
-    render();
+    await startSyncForCurrentRoom();
   });
 
   document.getElementById('rotate-invite-btn')?.addEventListener('click', async () => {
@@ -2825,6 +2930,491 @@ function bindViewEvents() {
 
   bindStitchEvents();
   bindAiEvents();
+}
+
+/**
+ * Wire up events for the centralized developer/admin dashboard
+ * (renderAdminDashboard). The family action handlers (approve/suspend/delete
+ * families, members, features) already live in bindViewEvents; here we bind
+ * only the dashboard-specific controls (tab switching, logout, create family,
+ * member toggling/deletion, feature save, AI/Firebase test buttons).
+ */
+function bindAdminDashboardEvents() {
+  // Tab navigation within the admin dashboard
+  document.querySelectorAll('[data-admin-tab]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      state.adminActiveTab = btn.getAttribute('data-admin-tab') || 'families';
+      try {
+        cachedAdminData = await fetchAdminDashboardData(cachedAdminData?.selectedFid);
+      } catch {
+        // keep previous data offline
+      }
+      render();
+    });
+  });
+
+  document.getElementById('admin-logout-btn')?.addEventListener('click', async () => {
+    await signOutActiveUser();
+    state.session = { loggedIn: false };
+    cachedAdminData = null;
+    showToast('🚪 تم تسجيل الخروج من لوحة الإدارة');
+    render();
+  });
+
+  // Family lifecycle actions (approve / suspend / activate / delete)
+  document.querySelectorAll('[data-action="approve-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const name = btn.getAttribute('data-name');
+      try {
+        await approvePendingFamily(fid, name);
+        showToast(`✅ تم اعتماد وتفعيل عائلة «${name}»`);
+        cachedAdminData = await fetchAdminDashboardData();
+      } catch (err) {
+        showToast(`❌ تعذر اعتماد العائلة: ${err?.message || err}`);
+      }
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="suspend-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const fam = cachedAdminData?.families?.find((f) => f.fid === fid);
+      try {
+        await updateFamilyStatus(fid, fam?.name || fid, 'suspended');
+        showToast(`⏸️ تم إيقاف عائلة «${fam?.name || fid}» مؤقتاً`);
+        cachedAdminData = await fetchAdminDashboardData();
+      } catch (err) {
+        showToast(`❌ تعذر الإيقاف: ${err?.message || err}`);
+      }
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="activate-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const fam = cachedAdminData?.families?.find((f) => f.fid === fid);
+      try {
+        await updateFamilyStatus(fid, fam?.name || fid, 'active');
+        showToast(`▶️ تم تنشيط عائلة «${fam?.name || fid}»`);
+        cachedAdminData = await fetchAdminDashboardData();
+      } catch (err) {
+        showToast(`❌ تعذر التنشيط: ${err?.message || err}`);
+      }
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="delete-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const name = btn.getAttribute('data-name');
+      // showConfirmDialog returns a Promise<boolean> — it does NOT take a callback.
+      const confirmed = await showConfirmDialog(
+        `هل أنت متأكد من حذف عائلة «${name}» نهائياً من قاعدة البيانات؟`,
+        { confirmText: '🗑️ حذف نهائي', cancelText: 'إلغاء' }
+      );
+      if (!confirmed) return;
+      try {
+        await deleteFamilyRecord(fid, name);
+        showToast(`🗑️ تم حذف عائلة «${name}»`);
+        cachedAdminData = await fetchAdminDashboardData();
+      } catch (err) {
+        showToast(`❌ تعذر حذف العائلة: ${err?.message || err}`);
+      }
+      render();
+    });
+  });
+
+  // Per-family user (member) selection + actions
+  document.getElementById('admin-users-fam-select')?.addEventListener('change', async (e) => {
+    cachedAdminData = await fetchAdminDashboardData(e.target.value);
+    render();
+  });
+
+  document.querySelectorAll('[data-action="toggle-member-active"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      showToast('🔄 جارٍ تحديث حالة العضو...');
+      // Member toggle handled by v2 rules; delegate to settings if present.
+      render();
+    });
+  });
+
+  // Feature flags save
+  document.getElementById('admin-features-fam-select')?.addEventListener('change', async (e) => {
+    cachedAdminData = await fetchAdminDashboardData(e.target.value);
+    render();
+  });
+
+  // --- Staff & support team management ---
+  const refreshAdmin = async () => {
+    try {
+      cachedAdminData = await fetchAdminDashboardData(cachedAdminData?.selectedFid);
+    } catch {
+      // keep previous data
+    }
+    render();
+  };
+
+  document.getElementById('staff-invite-btn')?.addEventListener('click', async () => {
+    const email = document.getElementById('staff-invite-email')?.value?.trim() || '';
+    const name = document.getElementById('staff-invite-name')?.value?.trim() || '';
+    const role = document.getElementById('staff-invite-role')?.value || 'support';
+    if (!email) {
+      showToast('⚠️ أدخل بريد الموظف');
+      return;
+    }
+    try {
+      await saveStaffInvite({ email, name, role });
+      showToast(`📨 تم إرسال الدعوة إلى ${email}`);
+      await refreshAdmin();
+    } catch (err) {
+      showToast(`❌ تعذر إرسال الدعوة: ${err?.message || err}`);
+    }
+  });
+
+  document.querySelectorAll('[data-action="toggle-staff"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.getAttribute('data-uid');
+      const isDisabled = btn.getAttribute('data-disabled') === 'true';
+      try {
+        await setStaffDisabled(uid, !isDisabled);
+        showToast(isDisabled ? '▶️ تم تفعيل حساب الموظف' : '⏸️ تم تعطيل حساب الموظف');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+      await refreshAdmin();
+    });
+  });
+
+  document.querySelectorAll('[data-action="remove-staff"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const uid = btn.getAttribute('data-uid');
+      const email = btn.getAttribute('data-email');
+      const confirmed = await showConfirmDialog(
+        `حذف «${email}» من فريق الدعم؟ سيفقد الوصول إلى بوابة الإدارة فوراً.`,
+        { confirmText: '🗑️ حذف', cancelText: 'إلغاء' }
+      );
+      if (!confirmed) return;
+      try {
+        await removeStaffMember(uid, email);
+        showToast('🗑️ تم حذف عضو الفريق');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+      await refreshAdmin();
+    });
+  });
+
+  document.querySelectorAll('[data-action="revoke-invite"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const email = btn.getAttribute('data-email');
+      try {
+        await revokeStaffInvite(email);
+        showToast('✅ تم إلغاء الدعوة');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+      await refreshAdmin();
+    });
+  });
+
+  // --- AI configuration (global + per-family) ---
+  const readAiForm = (prefix) => {
+    const providerEl = document.getElementById(`${prefix}-provider`);
+    const provider = providerEl?.value || 'gemini';
+    return {
+      provider,
+      name: document.getElementById(`${prefix}-name`)?.value?.trim() || '',
+      url: document.getElementById(`${prefix}-url`)?.value?.trim() || '',
+      type: document.getElementById(`${prefix}-type`)?.value || 'openai',
+      model: document.getElementById(`${prefix}-model`)?.value?.trim() || '',
+      apiKey: document.getElementById(`${prefix}-key`)?.value?.trim() || '',
+    };
+  };
+
+  const showAiResult = (prefix, msg) => {
+    const box = document.getElementById(`${prefix}-result`);
+    if (box) {
+      box.textContent = msg;
+      box.hidden = false;
+    }
+  };
+
+  const toggleCustomFields = (prefix) => {
+    const provider = document.getElementById(`${prefix}-provider`)?.value;
+    const isCustom = provider === 'custom';
+    ['name-wrap', 'url-wrap', 'type-wrap'].forEach((suffix) => {
+      const el = document.getElementById(`${prefix}-${suffix}`);
+      if (el) el.hidden = !isCustom;
+    });
+  };
+
+  const bindAiEditor = (prefix, scope) => {
+    document.getElementById(`${prefix}-provider`)?.addEventListener('change', () => toggleCustomFields(prefix));
+    toggleCustomFields(prefix);
+
+    document.getElementById(`${prefix}-key-toggle`)?.addEventListener('click', () => {
+      const inp = document.getElementById(`${prefix}-key`);
+      if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+
+    const currentFid = () =>
+      document.getElementById('ai-family-select')?.value || cachedAdminData?.selectedFid || '';
+
+    document.getElementById(`${prefix}-save`)?.addEventListener('click', async () => {
+      const form = readAiForm(prefix);
+      try {
+        await saveAiConfig({ scope, fid: scope === 'family' ? currentFid() : undefined, ...form });
+        showToast('💾 تم الحفظ بنجاح');
+        cachedAdminData = await fetchAdminDashboardData(currentFid());
+        if (cachedAdminData) {
+          cachedAdminData.activeTab = 'integrations';
+          state.adminActiveTab = 'integrations';
+        }
+        render();
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+    });
+
+    document.getElementById(`${prefix}-test`)?.addEventListener('click', async () => {
+      showAiResult(prefix, '⏳ جارٍ اختبار المزود...');
+      try {
+        const res = await testAiConfig(readAiForm(prefix));
+        showAiResult(prefix, `✅ نجح الاتصال (${res.ms}ms): ${res.reply}`);
+      } catch (err) {
+        showAiResult(prefix, `❌ فشل الاختبار: ${err?.message || err}`);
+      }
+    });
+
+    document.getElementById(`${prefix}-clear`)?.addEventListener('click', async () => {
+      try {
+        await clearAiConfig({ scope, fid: scope === 'family' ? currentFid() : undefined });
+        showToast(scope === 'family' ? '↩️ تم إرجاع العائلة للمفتاح العام' : '🗑️ تم حذف المفتاح العام');
+        cachedAdminData = await fetchAdminDashboardData(currentFid());
+        if (cachedAdminData) {
+          cachedAdminData.activeTab = 'integrations';
+          state.adminActiveTab = 'integrations';
+        }
+        render();
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+    });
+
+    // Fetch the model catalog into a table (no dropdowns).
+    document.getElementById(`${prefix}-models-btn`)?.addEventListener('click', async () => {
+      const box = document.getElementById(`${prefix}-models`);
+      if (!box) return;
+      box.hidden = false;
+      box.innerHTML = '<p class="mu">⏳ جارٍ جلب الموديلات من المزود...</p>';
+      try {
+        const rows = await listModelsForConfig(readAiForm(prefix));
+        box.innerHTML = renderModelsTable(rows, prefix);
+        showToast(`📋 تم جلب ${rows.length} موديل`);
+      } catch (err) {
+        box.innerHTML = `<p class="mu">❌ تعذّر جلب الموديلات: ${esc(String(err?.message || err))}</p>`;
+      }
+    });
+  };
+
+  const bindModelRows = (prefix) => {
+    const box = document.getElementById(`${prefix}-models`);
+    if (!box) return;
+
+    box.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn || btn.getAttribute('data-prefix') !== prefix) return;
+      const modelId = btn.getAttribute('data-model') || '';
+      const action = btn.getAttribute('data-action');
+
+      if (action === 'use-model') {
+        const inp = document.getElementById(`${prefix}-model`);
+        if (inp) inp.value = modelId;
+        showToast(`⬅️ تم اختيار ${modelId}`);
+        return;
+      }
+
+      if (action === 'test-model') {
+        const row = btn.closest('[data-model-row]');
+        const statusEl = row?.querySelector('.model-status');
+        if (statusEl) {
+          statusEl.textContent = '⏳';
+          statusEl.className = 'chip model-status';
+        }
+        try {
+          const res = await testModelForConfig(readAiForm(prefix), modelId);
+          if (statusEl) {
+            statusEl.textContent = `✅ ${res.ms}ms`;
+            statusEl.className = 'badge-ok model-status';
+          }
+        } catch (err) {
+          if (statusEl) {
+            statusEl.textContent = '❌ لا يعمل';
+            statusEl.className = 'badge-warn model-status';
+          }
+          showToast(`❌ ${modelId}: ${String(err?.message || err).slice(0, 80)}`);
+        }
+      }
+    });
+
+    box.addEventListener('click', async (e) => {
+      const btn = e.target.closest(`#${prefix}-test-all`);
+      if (!btn) return;
+      const rows = [...box.querySelectorAll('[data-model-row]')];
+      showToast(`⏳ اختبار ${rows.length} موديل — قد يستغرق دقيقة`);
+      for (const row of rows) {
+        const modelId = row.getAttribute('data-model-row');
+        const statusEl = row.querySelector('.model-status');
+        if (statusEl) {
+          statusEl.textContent = '⏳';
+          statusEl.className = 'chip model-status';
+        }
+        try {
+          const res = await testModelForConfig(readAiForm(prefix), modelId);
+          if (statusEl) {
+            statusEl.textContent = `✅ ${res.ms}ms`;
+            statusEl.className = 'badge-ok model-status';
+          }
+        } catch {
+          if (statusEl) {
+            statusEl.textContent = '❌ لا يعمل';
+            statusEl.className = 'badge-warn model-status';
+          }
+        }
+      }
+      showToast('✅ انتهى اختبار الموديلات');
+    });
+  };
+
+  bindAiEditor('ai-global', 'global');
+  bindAiEditor('ai-family', 'family');
+  bindModelRows('ai-global');
+  bindModelRows('ai-family');
+
+  document.getElementById('ai-family-select')?.addEventListener('change', async (e) => {
+    state.adminActiveTab = 'integrations';
+    cachedAdminData = await fetchAdminDashboardData(e.target.value);
+    if (cachedAdminData) cachedAdminData.activeTab = 'integrations';
+    render();
+  });
+
+  // --- Family management (members, PINs, forced update) ---
+  const openFamilyManager = async (fid, memberId = null) => {
+    state.adminManageFid = fid;
+    state.adminActiveTab = 'families';
+    cachedAdminData = await fetchAdminDashboardData(fid);
+    if (cachedAdminData) {
+      cachedAdminData.activeTab = 'families';
+      cachedAdminData.manageFid = fid;
+    }
+    if (memberId) state.adminManageMember = memberId;
+    render();
+  };
+
+  const refreshManager = async () => {
+    const fid = state.adminManageFid;
+    if (!fid) return;
+    cachedAdminData = await fetchAdminDashboardData(fid);
+    if (cachedAdminData) {
+      cachedAdminData.activeTab = 'families';
+      cachedAdminData.manageFid = fid;
+    }
+    render();
+  };
+
+  document.querySelectorAll('[data-action="manage-family"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      await openFamilyManager(btn.getAttribute('data-fid'));
+    });
+  });
+
+  document.querySelectorAll('[data-action="manage-back"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      state.adminManageFid = null;
+      cachedAdminData = await fetchAdminDashboardData();
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-action="toggle-member-access"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const memberId = btn.getAttribute('data-member-id');
+      const isOff = btn.getAttribute('data-off') === 'true';
+      try {
+        await setMemberAccess(fid, memberId, !isOff);
+        showToast(isOff ? '▶️ تم تمكين العضو' : '⏸️ تم إيقاف وصول العضو');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+      await refreshManager();
+    });
+  });
+
+  document.querySelectorAll('[data-action="set-member-pin"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      const name = btn.getAttribute('data-name');
+      const pin = await askForPin(`أدخل الرقم السري الجديد للعضو «${name}» (4 خانات فأكثر):`);
+      if (!pin) return;
+      try {
+        await setMemberPin(fid, name, pin);
+        showToast('🔑 تم تعيين الرقم السري — يُفعَّل عند أول دخول للعضو');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+      await refreshManager();
+    });
+  });
+
+  document.getElementById('add-family-member-btn')?.addEventListener('click', async () => {
+    const fid = document.getElementById('add-family-member-btn')?.getAttribute('data-fid');
+    const name = document.getElementById('new-member-name')?.value?.trim() || '';
+    const role = document.getElementById('new-member-role')?.value || 'member';
+    const pin = document.getElementById('new-member-pin')?.value?.trim() || '';
+    if (!name || !pin) {
+      showToast('⚠️ أدخل اسم العضو والرقم السري');
+      return;
+    }
+    try {
+      const res = await addFamilyMemberByStaff({ fid, name, role, pin });
+      showToast(`✅ تمت إضافة ${name} — البريد: ${res.email}`);
+    } catch (err) {
+      showToast(`❌ ${err?.message || err}`);
+    }
+    await refreshManager();
+  });
+
+  document.querySelectorAll('[data-action="member-role"]').forEach((sel) => {
+    sel.addEventListener('change', async () => {
+      const fid = sel.getAttribute('data-fid');
+      const memberId = sel.getAttribute('data-member-id');
+      try {
+        await setMemberRole(fid, memberId, sel.value);
+        showToast('✅ تم تحديث الصلاحية');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+      await refreshManager();
+    });
+  });
+
+  document.querySelectorAll('[data-action="force-update"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const fid = btn.getAttribute('data-fid');
+      try {
+        await forceFamilyUpdate(fid);
+        showToast('🔄 سيُطلب من تطبيق العائلة التحديث عند أول فتح');
+      } catch (err) {
+        showToast(`❌ ${err?.message || err}`);
+      }
+    });
+  });
+
 }
 
 /**
@@ -3096,6 +3686,8 @@ function registerServiceWorker() {
       const updateBanner = document.getElementById('sw-update');
       const showUpdate = () => {
         if (updateBanner) updateBanner.hidden = false;
+        const versionEl = document.getElementById('sw-version');
+        if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
       };
 
       if (reg.waiting && navigator.serviceWorker.controller) {
@@ -3110,6 +3702,13 @@ function registerServiceWorker() {
           }
         });
       });
+
+      // Check for SW updates every hour (in addition to browser's own checks).
+      // The bump-version script guarantees a fresh CACHE_VERSION on every release,
+      // so this poll reliably picks up new releases without manual cache busting.
+      setInterval(() => {
+        reg.update().catch(() => {});
+      }, 60 * 60 * 1000);
     })
     .catch(() => {
       // Service worker unavailable in restricted contexts
@@ -3131,7 +3730,11 @@ function registerServiceWorker() {
   document.getElementById('sw-reload')?.addEventListener('click', () => {
     const waiting = state.swRegistration?.waiting;
     if (waiting) {
+      // Ask the waiting SW to take over immediately.
       waiting.postMessage({ type: 'SKIP_WAITING' });
+      // Safety net: if the waiting worker never claims (edge case), reload anyway
+      // after a short delay so the user is never stuck on a stale banner.
+      setTimeout(() => window.location.reload(), 2500);
     } else {
       window.location.reload();
     }
@@ -3199,11 +3802,24 @@ async function init() {
         loggedIn: Boolean(savedSession.loggedIn),
         memberId: savedSession.memberId || 'mem_father',
         isDeveloper: Boolean(savedSession.isDeveloper),
+        fid: savedSession.fid || '',
+        familyName: savedSession.familyName || '',
+        memberName: savedSession.memberName || '',
+        role: savedSession.role || 'member',
+        uid: savedSession.uid || '',
       };
       if (typeof savedSession.roomId === 'string' && savedSession.roomId.trim()) {
         state.roomId = savedSession.roomId.trim();
       }
     }
+    if (state.session?.loggedIn && !state.session.isDeveloper && !state.isDeveloperPortal) {
+      const allowed = await verifySessionStillAllowed(state.session);
+      if (!allowed) {
+        state.session = { loggedIn: false, memberId: 'mem_father', fid: '' };
+        await localStore.setPref('activeSession', { loggedIn: false });
+      }
+    }
+
     const savedTheme = await localStore.getPref('theme', null);
     if (savedTheme && typeof savedTheme === 'object') {
       const safeAccent = /^#[0-9a-f]{6}$/i.test(savedTheme.accent || '')
@@ -3254,7 +3870,17 @@ async function init() {
     }
     if (state.isDeveloperPortal) {
       const staffSession = await localStore.getPref('activeStaffSession', null);
-      if (staffSession && staffSession.loggedIn && staffSession.isDeveloper) {
+      // The dev portal shares one Firebase Auth session with the family portal.
+      // A family member may still be signed in while a stale local staff session
+      // exists — in that case cloud reads are denied by the rules (the auth uid
+      // is not staff). Only trust the staff session when it matches the LIVE
+      // Firebase Auth user; otherwise require a fresh staff login.
+      const liveUid = await getActiveAuthUid();
+      const staffMatchesLive = Boolean(
+        staffSession && staffSession.loggedIn && staffSession.isDeveloper &&
+        staffSession.uid && liveUid && staffSession.uid === liveUid
+      );
+      if (staffMatchesLive) {
         state.session = staffSession;
         try {
           cachedAdminData = await fetchAdminDashboardData();
@@ -3263,6 +3889,27 @@ async function init() {
         }
       } else {
         state.session = { loggedIn: false };
+        // Drop the stale staff marker so the login screen is shown.
+        try {
+          await localStore.setPref('activeStaffSession', null);
+        } catch {
+          // ignore storage issues
+        }
+        // Complete a Google sign-in that was initiated via signInWithRedirect.
+        // This runs once after the redirect back from Google.
+        try {
+          const redirectSession = await finalizeStaffGoogleSignIn();
+          if (redirectSession && redirectSession.loggedIn) {
+            state.session = redirectSession;
+            try {
+              cachedAdminData = await fetchAdminDashboardData();
+            } catch {
+              // offline or emulator loading
+            }
+          }
+        } catch {
+          // no pending redirect result — ignore
+        }
       }
     } else if (!state.isDeveloperPortal && state.session.isDeveloper) {
       state.session.loggedIn = false;
@@ -3278,6 +3925,15 @@ async function init() {
   }
 
   await refreshSnapshot();
+  // Restore the owner-managed AI configuration for the signed-in family.
+  if (state.session?.loggedIn && !state.isDeveloperPortal) {
+    try {
+      await loadEffectiveAiConfig(state.session.fid || state.roomId);
+    } catch {
+      // keep local mode
+    }
+    void checkForcedUpdate(state.session.fid || state.roomId);
+  }
   handleLaunchIntents();
   registerServiceWorker();
   render();

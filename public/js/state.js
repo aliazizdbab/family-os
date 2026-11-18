@@ -2,6 +2,7 @@ import { DEFAULT_ACCENT, createEmptyRoomState } from './schema.js';
 import { localStore } from './store-idb.js';
 
 export const DEFAULT_ROOM_ID = 'family-v2-local';
+export const APP_VERSION = '1.0.0';
 export const DEFAULT_FIREBASE_PROJECT_ID = 'family-requests-9e431';
 export const DEFAULT_RTDB_URL = 'https://family-requests-9e431-default-rtdb.firebaseio.com';
 export const DEFAULT_FIREBASE_CONFIG = Object.freeze({
@@ -17,6 +18,8 @@ export const DEFAULT_FIREBASE_CONFIG = Object.freeze({
 export const state = {
   tab: 'home',
   roomId: DEFAULT_ROOM_ID,
+  adminActiveTab: 'families',
+  adminManageFid: null,
   listFilter: 'todo',
   taskFilter: 'all',
   showDone: false,

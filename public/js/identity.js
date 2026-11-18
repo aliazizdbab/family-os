@@ -143,7 +143,7 @@ export function describeAuthError(err) {
   if (/email-already-in-use/i.test(code)) return 'يوجد حساب مسجّل بنفس البيانات مسبقاً.';
   if (/weak-password/i.test(code)) return 'كلمة المرور ضعيفة جداً.';
   if (/operation-not-allowed|PASSWORD_LOGIN_DISABLED/i.test(code)) {
-    return 'طريقة تسجيل الدخول غير مفعّلة في إعدادات Firebase Authentication.';
+    return 'تسجيل الدخول بالبريد/كلمة المرور غير مفعّل في Firebase. فعّله من Firebase Console ← Authentication ← Sign-in method ← Email/Password (بريد/كلمة مرور).';
   }
   if (/popup-closed|cancelled-popup/i.test(code)) return 'تم إغلاق نافذة تسجيل الدخول قبل الإكمال.';
   if (/PERMISSION_DENIED|permission-denied|permission_denied/i.test(code)) {
